@@ -1,0 +1,10 @@
+set rulebase security rules Allow-Modbus from trust
+set rulebase security rules Allow-Modbus to untrust
+set rulebase security rules Allow-Modbus source 10.0.1.0/24
+set rulebase security rules Allow-Modbus destination 10.0.1.10
+set rulebase security rules Allow-Modbus service tcp-502
+set rulebase security rules Allow-Modbus action allow
+set rulebase security rules Deny-All source any
+set rulebase security rules Deny-All destination any
+set rulebase security rules Deny-All service any
+set rulebase security rules Deny-All action deny

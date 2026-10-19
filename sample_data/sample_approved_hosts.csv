@@ -1,0 +1,7 @@
+ip,mac,hostname,role,zone,owner,notes
+10.0.4.100,,jump-host-01,jump_host,DMZ,IT-Admin,Primary RDP jump server
+10.0.4.101,,jump-host-02,jump_host,DMZ,IT-Admin,Backup jump server
+10.0.4.5,,admin-ws-01,admin_ws,IT,IT-Admin,Firewall admin workstation
+10.0.3.50,,eng-ws-01,engineering_ws,Site-Ops,OT-Engineer,Primary engineering workstation
+10.0.2.10,,hmi-01,hmi,Level2,OT-Engineer,SCADA HMI station
+10.0.2.11,,hmi-02,hmi,Level2,OT-Engineer,Local HMI panel

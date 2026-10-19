@@ -1,0 +1,21 @@
+# IACS_Monitor - development / debugging override.  Use together with the
+# production file:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# Differences: "dev" image target (test tools + tests), source bind-mounted
+# with --reload, database in ./data on the host (easy to inspect / reset),
+# no automatic restart (a failing start stays visible).
+# Host folder ownership: sudo chown -R 1000:1000 ./data  (container user uid 1000)
+services:
+  iasc-monitor:
+    build:
+      target: dev
+    image: iasc-monitor:dev
+    container_name: iasc-monitor-dev
+    volumes:
+      - ./data:/data
+      - ./app:/app/app
+      - ./ui:/app/ui
+      - ./tests:/app/tests
+    restart: "no"
+    environment:
+      IACS_REVIEW_ENABLED: "false"

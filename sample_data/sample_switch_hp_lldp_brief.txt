@@ -1,0 +1,6 @@
+LLDP Remote Devices Information
+
+  LocalPort | ChassisId               PortId   PortDescr SysName
+  --------- + ------------------------ -------- --------- ------------------
+  1         | 00 00 00 12 34 ab        1        Port 1    plc-hmi-01
+  5         | 00 11 22 33 44 55        5        Port 5    eng-workstation

@@ -1,0 +1,33 @@
+# Complete, pinned runtime dependency set (direct + transitive) - exactly the
+# versions the suite, the tabletops and the real-config run were verified with
+# on Python 3.11.  Generated from the tested environment; the Docker image
+# installs this file with --no-deps, so nothing outside it can slip in.
+# Regenerate after changing requirements.txt (docs/docker-install.md).
+alembic==1.20.0
+annotated-doc==0.0.5
+annotated-types==0.7.0
+anyio==4.13.0
+apscheduler==3.11.3
+charset-normalizer==3.4.7
+click==8.3.3
+defusedxml==0.7.1
+fastapi==0.141.1
+h11==0.16.0
+idna==3.13
+mako==1.4.3
+markupsafe==3.0.3
+pillow==12.2.0
+psycopg2-binary==2.9.13
+pydantic==2.13.3
+pydantic-core==2.46.3
+python-multipart==0.0.26
+reportlab==4.4.10
+scapy==2.7.0
+sqlalchemy==2.1.1
+starlette==1.0.0
+typing-extensions==4.15.0
+typing-inspection==0.4.2
+tzlocal==5.4.4
+uvicorn==0.46.0
+et_xmlfile==2.0.0
+openpyxl==3.1.5

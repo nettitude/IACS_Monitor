@@ -1,0 +1,17 @@
+hostname ICS-SWITCH-01
+!
+interface GigabitEthernet1/0/1
+ description Uplink to Engineering Workstation
+ switchport access vlan 10
+ switchport mode access
+!
+interface GigabitEthernet1/0/2
+ description Link to PLC-HMI-01
+ switchport access vlan 20
+ switchport mode access
+!
+interface GigabitEthernet1/0/24
+ description Trunk to Core
+ switchport trunk allowed vlan 10,20,30
+ switchport mode trunk
+!

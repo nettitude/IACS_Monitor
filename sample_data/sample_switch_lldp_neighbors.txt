@@ -1,0 +1,14 @@
+------------------------------------------------
+Local Intf: Gi1/0/2
+Chassis id: 0011.2233.4455
+Port id: Gi0/3
+Port Description:
+System Name: PLC-HMI-01
+Management Addresses:
+    IP: 10.0.1.10
+------------------------------------------------
+Local Intf: Gi1/0/6
+Chassis id: aa:bb:cc:dd:ee:01
+Port id: 1
+System Name:
+------------------------------------------------

@@ -1,0 +1,17 @@
+# Keep dev databases, build output and caches out of the image / build context
+*.db
+**/*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.pdf
+dist/
+.pytest_cache/
+__pycache__/
+*.pyc
+.git/
+.venv/
+.env
+data/
+iasc_scheduler.lock
+*.tar.gz

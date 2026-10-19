@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IACS_Monitor — Firewall Topology Builder</title>
+<style>
+  :root {
+    --bg: #0f1720; --panel: #161f2c; --border: #2a3648; --text: #e6edf3;
+    --muted: #8b98a8; --accent: #4d9de0; --accent2: #3d8fd0;
+    --green: #3fb950; --red: #f85149; --orange: #d29922; --purple: #9d82d8;
+    --high: #3fb950; --medium: #d29922; --low: #8b98a8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", sans-serif; font-size: 13px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ===== HEADER ===== */
+  #header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  #header h1 { font-size: 15px; font-weight: 500; white-space: nowrap; }
+  #api-base { background: #0d141d; border: 1px solid var(--border); border-radius: 5px; padding: 5px 10px; color: var(--text); font-size: 12px; width: 200px; }
+  .btn { background: transparent; border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 5px 12px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-primary { border-color: var(--accent); color: var(--accent); }
+  .btn-primary:hover { background: rgba(77,157,224,0.1); }
+  .btn-confirm { border-color: var(--green); color: var(--green); }
+  .btn-confirm:hover { background: rgba(63,185,80,0.1); }
+  .btn-danger { border-color: var(--red); color: var(--red); }
+  #status-bar { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  #status { color: var(--muted); font-size: 12px; }
+  #error-msg { color: var(--red); font-size: 12px; }
+  #header { flex-wrap: wrap; }
+  #fw-badge span, #status { white-space: nowrap; }
+  .multi-badge { background: rgba(77,157,224,0.15); color: var(--accent); border: 1px solid rgba(77,157,224,0.3); border-radius: 4px; padding: 2px 8px; font-size: 11px; }
+  .single-badge { background: rgba(139,152,168,0.15); color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; font-size: 11px; }
+
+  /* ===== LAYOUT ===== */
+  #main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ===== LEFT PANEL (proposals + pcap) ===== */
+  #left-panel { width: 280px; flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .lp-section { border-bottom: 1px solid var(--border); }
+  .lp-header { padding: 10px 14px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+  .lp-header:hover { color: var(--text); }
+  .lp-body { padding: 8px; overflow-y: auto; }
+  #proposals-body { max-height: 260px; }
+  #pcap-body { padding: 12px 14px; }
+
+  /* Proposals */
+  .proposal-card {
+    background: #0d141d; border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; margin-bottom: 6px; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .proposal-card:hover { border-color: var(--accent); background: #111c29; }
+  .proposal-card.active { border-color: var(--accent); background: #111c29; }
+  .proposal-card.highlighted { border-color: var(--orange) !important; }
+  .prop-confidence { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; margin-bottom: 4px; }
+  .conf-high { background: rgba(63,185,80,0.15); color: var(--high); }
+  .conf-medium { background: rgba(210,153,34,0.15); color: var(--medium); }
+  .conf-low { background: rgba(139,152,168,0.15); color: var(--low); }
+  .prop-link { font-size: 11px; color: var(--text); line-height: 1.5; }
+  .prop-iface { font-family: monospace; font-size: 10px; color: var(--accent); }
+  .prop-cidr { color: var(--muted); font-size: 10px; font-family: monospace; }
+  .prop-actions { display: flex; gap: 6px; margin-top: 6px; }
+  .prop-actions .btn { padding: 3px 8px; font-size: 11px; }
+  .no-proposals { color: var(--muted); font-size: 12px; padding: 8px 6px; }
+
+  /* PCAP upload */
+  .pcap-field { margin-bottom: 10px; }
+  .pcap-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 4px; }
+  .pcap-select, .pcap-input { width: 100%; background: #0d141d; border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; color: var(--text); font-size: 12px; }
+  .pcap-select option { background: #0d141d; }
+  #pcap-file-btn { width: 100%; margin-top: 8px; }
+  #pcap-result { margin-top: 8px; font-size: 11px; }
+  .pcap-suggestion { background: #0d141d; border: 1px solid var(--border); border-radius: 5px; padding: 8px; margin-top: 6px; }
+  .pcap-suggestion .prop-confidence { margin-bottom: 2px; }
+
+  /* ===== CANVAS AREA ===== */
+  #canvas-area { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  #canvas-scroll { flex: 1; overflow: auto; position: relative; }
+  #fw-canvas-wrap { display: flex; gap: 0; min-height: 100%; padding: 20px; align-items: flex-start; position: relative; }
+
+  /* SVG link overlay */
+  #link-svg { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 5; overflow: visible; }
+
+  /* Firewall column */
+  .fw-column {
+    width: 240px; flex-shrink: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    display: flex; flex-direction: column; overflow: hidden; position: relative; z-index: 1;
+  }
+  .fw-column + .fw-column { margin-left: 60px; }
+  .fw-header { padding: 10px 12px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.03); }
+  .fw-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .fw-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .fw-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+
+  /* Interface card */
+  .iface-card {
+    background: #0d141d; border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s;
+    position: relative;
+  }
+  .iface-card:hover { border-color: var(--accent); }
+  .iface-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .iface-card.linked { border-color: var(--green); }
+  .iface-card.proposal-target { border-color: var(--orange); animation: pulse-orange 1.5s ease infinite; }
+  .iface-card.ha { opacity: 0.45; }
+  .iface-card.mgmt { opacity: 0.55; }
+  @keyframes pulse-orange {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(210,153,34,0); }
+    50% { box-shadow: 0 0 0 3px rgba(210,153,34,0.3); }
+  }
+  .iface-name { font-size: 12px; font-weight: 500; font-family: monospace; }
+  .iface-cidr { font-size: 10px; color: var(--accent); font-family: monospace; margin-top: 1px; }
+  .iface-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .badge { padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 600; }
+  .badge-side-inside { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge-side-outside { background: rgba(248,81,73,0.15); color: var(--red); }
+  .badge-ha { background: rgba(139,152,168,0.1); color: var(--muted); }
+  .badge-mgmt { background: rgba(139,152,168,0.1); color: var(--muted); }
+  .badge-linked { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge-zone { background: rgba(77,157,224,0.12); color: var(--accent); }
+  .badge-purdue { background: rgba(157,130,216,0.12); color: var(--purple); }
+  .iface-section-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); padding: 4px 2px 2px; }
+
+  /* ===== RIGHT PANEL (interface detail) ===== */
+  #right-panel { width: 240px; flex-shrink: 0; background: var(--panel); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .rp-header { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 500; }
+  .rp-body { padding: 12px 14px; overflow-y: auto; flex: 1; }
+  .rp-field { margin-bottom: 12px; }
+  .rp-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 4px; }
+  .rp-value { font-size: 12px; font-family: monospace; color: var(--text); }
+  .rp-input { width: 100%; background: #0d141d; border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; color: var(--text); font-size: 12px; }
+  .rp-select { width: 100%; background: #0d141d; border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; color: var(--text); font-size: 12px; }
+  .rp-select option { background: #0d141d; }
+  .rp-save-btn { width: 100%; margin-top: 4px; }
+  .rp-link-info { background: #0d141d; border: 1px solid var(--green); border-radius: 5px; padding: 8px; margin-bottom: 10px; font-size: 11px; }
+  .rp-link-info .link-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--green); margin-bottom: 4px; }
+  #empty-right { color: var(--muted); font-size: 12px; }
+
+  /* ===== EMPTY STATE ===== */
+  #empty-state {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    text-align: center; color: var(--muted); pointer-events: none;
+  }
+  #action-result { font-size: 11px; color: var(--muted); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rp-check { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 10px; }
+
+  @media (max-width: 900px) {
+    body { height: auto; min-height: 100vh; overflow: auto; overflow-x: hidden; }
+    #header { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+    #header h1 { white-space: normal; }
+    #api-base { width: 100%; max-width: 260px; }
+    #status-bar { margin-left: 0; flex-wrap: wrap; }
+    #main { flex-direction: column; overflow: visible; }
+    #left-panel, #right-panel { width: 100%; border: none; border-bottom: 1px solid var(--border); overflow: visible; }
+    #canvas-area { min-height: 55vh; border-bottom: 1px solid var(--border); }
+    #canvas-scroll { max-width: 100vw; }
+    .rp-body { overflow: visible; }
+  }
+
+  #empty-state .empty-icon { font-size: 36px; opacity: 0.25; margin-bottom: 8px; }
+  #empty-state p { font-size: 12px; line-height: 1.6; }
+  /* B-23: visible keyboard focus on every interactive element */
+  button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>IACS_Monitor — Firewall Topology</h1>
+  <input id="api-base" type="text" placeholder="API base URL" aria-label="API base URL">
+  <select id="site-filter" aria-label="Site" title="This site's firewalls" data-testid="site-filter"></select>
+  <button class="btn btn-primary" id="reload-btn" type="button">Reload ↗</button>
+  <button class="btn" id="suggest-btn" type="button" title="POST /topology/suggest-purdue">Suggest Purdue</button>
+  <button class="btn" id="checks-btn" type="button" title="POST /topology/run-checks">Run cross-FW checks</button>
+  <span id="action-result"></span>
+  <div id="status-bar">
+    <span id="fw-badge"></span>
+    <span id="status"></span>
+    <span id="error-msg"></span>
+  </div>
+</div>
+
+<div id="main">
+
+  <!-- LEFT: proposals + pcap upload -->
+  <div id="left-panel">
+    <div class="lp-section" style="flex-shrink:0">
+      <div class="lp-header">
+        <span>Link Proposals</span>
+        <span id="proposal-count" style="color:var(--text)">—</span>
+      </div>
+      <div class="lp-body" id="proposals-body"></div>
+    </div>
+
+    <div class="lp-section" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="lp-header">
+        <span>PCAP Upload (FW-aware)</span>
+      </div>
+      <div class="lp-body" id="pcap-body">
+        <div class="pcap-field">
+          <div class="pcap-label">Firewall (optional)</div>
+          <select class="pcap-select" id="pcap-fw-select">
+            <option value="">— auto-detect —</option>
+          </select>
+        </div>
+        <div class="pcap-field">
+          <div class="pcap-label">Side hint</div>
+          <select class="pcap-select" id="pcap-side-select">
+            <option value="">— unknown —</option>
+            <option value="inside">inside</option>
+            <option value="outside">outside</option>
+          </select>
+        </div>
+        <div class="pcap-field">
+          <div class="pcap-label">PCAP file</div>
+          <input type="file" id="pcap-file" accept=".pcap,.pcapng,.cap" style="display:none">
+          <button class="btn btn-primary" id="pcap-file-btn" type="button">Choose &amp; Upload…</button>
+        </div>
+        <div id="pcap-result"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: firewall columns canvas -->
+  <div id="canvas-area">
+    <div id="canvas-scroll">
+      <div id="fw-canvas-wrap">
+        <svg id="link-svg"></svg>
+        <div id="empty-state">
+          <div class="empty-icon">⬡</div>
+          <p>No firewall configs uploaded yet.<br>Upload a FortiGate config to begin.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: interface detail / label editor -->
+  <div id="right-panel">
+    <div class="rp-header" id="rp-title">Select an interface</div>
+    <div class="rp-body" id="rp-body">
+      <p id="empty-right">Click any interface card to view details and set its side, zone, and Purdue level.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+// Firewall/interface names, zone labels, CIDRs, vendor strings and server
+// error text are all attacker-influenced (they come from uploaded configs).
+// Nothing from the API is passed to innerHTML or an inline handler; el()
+// builds nodes with textContent / setAttribute, handlers use closures.
+
+// ─────────────────────────────────────────── state
+let state = null;           // full /topology/state response
+let fwMeta = {};            // id → /topology/firewalls row
+let selectedIface = null;   // {iface, fw} currently selected
+let activeProposal = null;  // proposal being highlighted
+let ifaceEls = {};          // id → DOM element
+
+// ─────────────────────────────────────────── helpers
+function defaultApiBase() {
+  return /^https?:$/.test(location.protocol) ? location.origin : "http://localhost:8000";
+}
+const apiBaseEl = document.getElementById("api-base");
+apiBaseEl.value = defaultApiBase();
+function apiBase() { return apiBaseEl.value.trim().replace(/\/+$/, ""); }
+
+// replaceChildren() would render null/false as the text "null"/"false"; drop them.
+function put(node, ...kids) { node.replaceChildren(...kids.flat().filter(k => k !== null && k !== undefined && k !== false)); }
+
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "text") e.textContent = String(v);
+    else if (k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : String(v));
+  }
+  for (const c of children.flat()) {
+    if (c === null || c === undefined || c === false) continue;
+    e.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return e;
+}
+
+function setStatus(msg, err) {
+  document.getElementById("status").textContent = msg;
+  document.getElementById("error-msg").textContent = err || "";
+}
+
+// ---- sites (multi-site phase 1) ----
+// The selection is shared with the console (/ui) through localStorage
+// ("iasc_site"); always one site (owner 2026-10-13).  List fetches add ?site_id=<id>.
+const SITE_KEY = "iasc_site";
+function siteId() { const s = document.getElementById("site-filter"); return s ? s.value : ""; }
+function withSite(path) {
+  const id = siteId();
+  return id ? path + (path.includes("?") ? "&" : "?") + "site_id=" + encodeURIComponent(id) : path;
+}
+// Phase 2: this page works on ONE site; with "All sites" selected while
+// several sites exist it asks for a site instead of calling the API (422).
+function needsSite() {
+  const sel = document.getElementById("site-filter");
+  return !siteId() && !!sel && [...sel.options].filter(o => o.value).length > 1;
+}
+// B-23: per-view load guard (same pattern as the console /ui).  beginLoad()
+// captures the site once, aborts the view's previous in-flight request and
+// returns g: g.withSite(path) adds that captured site, g.signal aborts, and
+// g.stale() is true once a newer load started or the site selector changed.
+const VIEW_LOADS = {};
+function beginLoad(view) {
+  const prev = VIEW_LOADS[view];
+  if (prev) prev.ctrl.abort();
+  const ctrl = new AbortController();
+  const g = { site: siteId(), ctrl, signal: ctrl.signal };
+  g.stale = () => VIEW_LOADS[view] !== g || g.site !== siteId() || ctrl.signal.aborted;
+  g.withSite = path => g.site ? path + (path.includes("?") ? "&" : "?") + "site_id=" + encodeURIComponent(g.site) : path;
+  VIEW_LOADS[view] = g;
+  return g;
+}
+async function initSiteFilter(baseFn, onChange) {
+  const sel = document.getElementById("site-filter");
+  let keep = "", sites = [];
+  try { keep = localStorage.getItem(SITE_KEY) || ""; } catch (_) { keep = ""; }
+  try {
+    const resp = await fetch(`${baseFn()}/sites`);
+    if (resp.ok) {
+      const data = await resp.json();
+      const rows = (Array.isArray(data) ? data : []).filter(x => x && x.id != null && x.name);
+      // owner 2026-10-13: always ONE site - no "All sites" option; pages show
+      // only the selected site's data (the console's Sites overview is the
+      // cross-site view)
+      sel.replaceChildren(...(rows.length ? rows.map(x => el("option", { value: String(x.id), text: String(x.name) }))
+                                          : [el("option", { value: "", text: "— no sites —" })]));
+      sites = rows;
+    }
+  } catch (_) { /* no site list: requests go without a site */ }
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+  else if (sites.length) {
+    const d = sites.find(x => x.is_default) || sites[0];
+    sel.value = String(d.id);
+    try { localStorage.setItem(SITE_KEY, sel.value); } catch (_) { /* storage blocked */ }
+  }
+  if (!sel.dataset.bound) {
+    sel.dataset.bound = "1";
+    sel.addEventListener("change", () => {
+      try { if (sel.value) localStorage.setItem(SITE_KEY, sel.value); else localStorage.removeItem(SITE_KEY); } catch (_) { /* storage blocked */ }
+      onChange();
+    });
+  }
+}
+
+async function api(path, opts) {
+  const resp = await fetch(`${apiBase()}${path}`, opts);
+  let body = null;
+  try { body = await resp.json(); } catch (_) {}
+  if (!resp.ok) {
+    const d = body && body.detail;
+    throw new Error(`HTTP ${resp.status}${d ? " — " + (typeof d === "string" ? d : JSON.stringify(d)) : ""}`);
+  }
+  return body;
+}
+function postJson(path, body) {
+  if (path.startsWith("/topology/")) path = withSite(path);   // per-site operation
+  return api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+
+const CONFIDENCES = ["high", "medium", "low"];
+function confClass(c) { return "conf-" + (CONFIDENCES.includes(c) ? c : "low"); }
+function confLabel(c) { c = String(c || "unknown"); return c.charAt(0).toUpperCase() + c.slice(1); }
+// Purdue levels - mirrors app/purdue.py (F-08): 3.5 = industrial DMZ.
+const LEVELS = [0, 1, 2, 3, 3.5, 4, 5];
+const LEVEL_DESC = { 5: "Internet / External", 4: "Business / Enterprise", 3.5: "Industrial DMZ", 3: "Site Operations", 2: "Supervisory Control", 1: "Basic Control", 0: "Physical Process" };
+function isLevel(n) { return typeof n === "number" && LEVELS.includes(n); }
+function fmtLevel(n) { return isLevel(n) ? "L" + n : "L?"; }
+function parseLevel(v) { if (v === "" || v == null) return null; const n = Number(v); return isLevel(n) ? n : null; }
+const SIDES = ["inside", "outside"];
+
+// ─────────────────────────────────────────── load
+async function load() {
+  const g = beginLoad("fwtopo");
+  if (needsSite()) {
+    state = { is_multi_fw: false, firewall_count: 0, firewalls: [], pending_proposals: [] };
+    fwMeta = {};
+    render();
+    document.getElementById("empty-state").style.display = "none";
+    setStatus("", "The firewall topology builder works on one site - select a site (Site selector at the top).");
+    document.body.dataset.loaded = "1";
+    return;
+  }
+  setStatus("Loading…");
+  try {
+    const [st, fws] = await Promise.all([
+      api(g.withSite("/topology/state"), { signal: g.signal }),
+      api(g.withSite("/topology/firewalls"), { signal: g.signal }).catch(() => ({ firewalls: [] })),
+    ]);
+    if (g.stale()) return;              // superseded / site changed meanwhile
+    state = st;
+    fwMeta = Object.fromEntries((fws.firewalls || []).map(f => [f.id, f]));
+    render();
+    populatePcapFwSelect();
+    const n = state.firewall_count, p = state.pending_proposals.length;
+    setStatus(`${n} firewall${n !== 1 ? "s" : ""} · ${p} proposal${p !== 1 ? "s" : ""}`);
+    document.body.dataset.loaded = "1";
+  } catch (e) {
+    if (g.stale()) return;
+    setStatus("", `Error: ${e.message}`);
+  }
+}
+
+// ─────────────────────────────────────────── render
+function render() {
+  ifaceEls = {};
+  selectedIface = null;
+  activeProposal = null;
+
+  const wrap = document.getElementById("fw-canvas-wrap");
+  Array.from(wrap.querySelectorAll(".fw-column")).forEach(n => n.remove());
+  document.getElementById("link-svg").replaceChildren();
+
+  const empty = document.getElementById("empty-state");
+  renderBadge();
+  renderProposals();
+  renderRightPanel(null);
+  if (!state || state.firewalls.length === 0) { empty.style.display = ""; return; }
+  empty.style.display = "none";
+
+  for (const fw of state.firewalls) wrap.appendChild(buildFwColumn(fw));
+  requestAnimationFrame(() => requestAnimationFrame(drawLinks));
+}
+
+function renderBadge() {
+  const b = document.getElementById("fw-badge");
+  if (!state) { b.replaceChildren(); return; }
+  b.replaceChildren(state.is_multi_fw
+    ? el("span", { class: "multi-badge", text: "Multi-FW mode" })
+    : el("span", { class: "single-badge", text: "Single-FW" }));
+}
+
+// ─────────────────────────────────────────── HA clusters / paired firewalls
+function groupBadges(fw) {
+  const gs = state && Array.isArray(state.firewall_groups) ? state.firewall_groups : [];
+  return gs.filter(g => (g.members || []).some(m => m.id === fw.id)).map(g =>
+    el("div", {}, el("span", { class: "badge badge-linked", "data-testid": g.kind === "ha" ? "ha-badge" : "paired-badge",
+      text: g.kind === "ha"
+        ? `HA ${g.name}${g.primary_firewall_id === fw.id ? " · primary" : " · member"}`
+        : `paired ${g.name}${g.vendor_diversity_attested ? "" : " · vendors unconfirmed"}` })));
+}
+
+async function declareGroup(kind, ids, btn) {
+  btn.disabled = true;
+  btn.textContent = "Confirming…";
+  try {
+    const r = await postJson(kind === "ha" ? "/topology/ha-pairs" : "/topology/paired-firewalls", { firewall_ids: ids });
+    showAction(`${kind === "ha" ? "HA cluster" : "Paired firewall"} ${r.name} confirmed · ${summarizeChecks(r.cross_fw_checks)}`);
+    await load();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "Confirm ✓";
+    setStatus("", `Confirm failed: ${e.message}`);
+  }
+}
+
+// ─────────────────────────────────────────── FW column
+function buildFwColumn(fw) {
+  const meta = fwMeta[fw.id];
+  const body = el("div", { class: "fw-body" });
+  const col = el("div", { class: "fw-column", "data-fw-id": fw.id, "data-testid": "fw-column" },
+    el("div", { class: "fw-header" },
+      el("div", { class: "fw-name", text: fw.name || `#${fw.id}` }),
+      el("div", { class: "fw-meta" },
+        fw.vendor || "fortigate",
+        meta ? ` · ${meta.capture_count} capture${meta.capture_count !== 1 ? "s" : ""}` : "",
+        fw.topology_confirmed ? [" · ", el("span", { style: "color:var(--green)", text: "confirmed" })] : null),
+      ...groupBadges(fw)),
+    body);
+
+  const routed = fw.interfaces.filter(i => !i.is_ha && !i.is_mgmt_only);
+  const sections = [
+    ["OUTSIDE", routed.filter(i => i.side === "outside")],
+    ["UNLABELED", routed.filter(i => !SIDES.includes(i.side))],
+    ["INSIDE", routed.filter(i => i.side === "inside")],
+    ["HA", fw.interfaces.filter(i => i.is_ha)],
+    ["MGMT", fw.interfaces.filter(i => !i.is_ha && i.is_mgmt_only)],
+  ];
+  for (const [label, ifaces] of sections) {
+    if (!ifaces.length) continue;
+    body.appendChild(el("div", { class: "iface-section-label", text: label }));
+    for (const iface of ifaces) body.appendChild(buildIfaceCard(iface, fw));
+  }
+  return col;
+}
+
+// ─────────────────────────────────────────── interface card
+function buildIfaceCard(iface, fw) {
+  const badges = [];
+  if (SIDES.includes(iface.side)) badges.push(el("span", { class: `badge badge-side-${iface.side}`, text: iface.side }));
+  if (iface.is_ha)         badges.push(el("span", { class: "badge badge-ha", text: "HA" }));
+  if (iface.is_mgmt_only)  badges.push(el("span", { class: "badge badge-mgmt", text: "mgmt" }));
+  if (iface.connects_to_interface_id) badges.push(el("span", { class: "badge badge-linked", text: "linked ↔" }));
+  if (iface.segment) badges.push(el("span", { class: "badge badge-linked", title: "shared segment", text: "segment " + iface.segment }));
+  if (iface.zone_label)    badges.push(el("span", { class: "badge badge-zone", text: iface.zone_label }));
+  if (isLevel(iface.purdue_level))
+    badges.push(el("span", { class: "badge badge-purdue", title: LEVEL_DESC[iface.purdue_level], text: fmtLevel(iface.purdue_level) }));
+  else if (isLevel(iface.suggested_purdue_level))
+    badges.push(el("span", { class: "badge", style: "background:rgba(210,153,34,0.15);color:var(--orange)",
+                             title: "suggested: " + LEVEL_DESC[iface.suggested_purdue_level],
+                             text: "~" + fmtLevel(iface.suggested_purdue_level) }));
+
+  const card = el("div", {
+    class: "iface-card" + (iface.is_ha ? " ha" : "") + (iface.is_mgmt_only ? " mgmt" : "") +
+           (iface.connects_to_interface_id || iface.segment ? " linked" : ""),
+    id: `iface-${Number(iface.id)}`, "data-iface-id": iface.id, "data-testid": "iface-card", tabindex: "0",
+    onclick: () => selectIface(iface, fw),
+    role: "button", "aria-pressed": "false",
+    // B-23: Enter and Space select the interface (keyboard twin of the click).
+    onkeydown: e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); selectIface(iface, fw); } },
+  },
+    el("div", { class: "iface-name", text: iface.name }),
+    iface.ip_cidr ? el("div", { class: "iface-cidr", text: iface.ip_cidr }) : null,
+    iface.network_cidr && iface.network_cidr !== iface.ip_cidr
+      ? el("div", { class: "iface-cidr", style: "color:var(--muted)", text: iface.network_cidr }) : null,
+    badges.length ? el("div", { class: "iface-badges" }, badges) : null);
+  ifaceEls[iface.id] = card;
+  return card;
+}
+
+// ─────────────────────────────────────────── link drawing
+function getCardCenter(ifaceId) {
+  const n = ifaceEls[ifaceId];
+  if (!n) return null;
+  const wrap = document.getElementById("fw-canvas-wrap");
+  const wr = wrap.getBoundingClientRect();
+  const er = n.getBoundingClientRect();
+  return { x: er.left - wr.left + er.width / 2, y: er.top - wr.top + er.height / 2, w: er.width };
+}
+
+// Anchor a link on the facing edges of the two cards instead of their centres.
+function anchors(a, b) {
+  if (Math.abs(a.x - b.x) < (a.w + b.w) / 2) return [a, b];      // same column
+  const dir = a.x < b.x ? 1 : -1;
+  return [{ x: a.x + dir * a.w / 2, y: a.y }, { x: b.x - dir * b.w / 2, y: b.y }];
+}
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs) {
+  const n = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v));
+  return n;
+}
+
+function drawLinks() {
+  if (!state) return;
+  const wrap = document.getElementById("fw-canvas-wrap");
+  const svg  = document.getElementById("link-svg");
+  svg.replaceChildren();
+  svg.setAttribute("width",  wrap.scrollWidth);
+  svg.setAttribute("height", wrap.scrollHeight);
+
+  const seen = new Set();
+  for (const fw of state.firewalls) {
+    for (const iface of fw.interfaces) {
+      if (!iface.connects_to_interface_id) continue;
+      const pairKey = [iface.id, iface.connects_to_interface_id].sort().join(":");
+      if (seen.has(pairKey)) continue;
+      seen.add(pairKey);
+      const ca = getCardCenter(iface.id), cb = getCardCenter(iface.connects_to_interface_id);
+      if (!ca || !cb) continue;
+      const [a, b] = anchors(ca, cb);
+      const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+      svg.appendChild(svgEl("path", { d: `M${a.x},${a.y} C${cx},${a.y} ${cx},${b.y} ${b.x},${b.y}`,
+        stroke: "var(--green)", "stroke-width": 2, fill: "none", "stroke-dasharray": "6,3", opacity: 0.7 }));
+      const angle = b.x === cx ? Math.atan2(b.y - cy, 0) : Math.atan2(0, b.x - cx);   // tangent at the end of the curve
+      const ax = b.x - Math.cos(angle) * 8, ay = b.y - Math.sin(angle) * 8;
+      const lx = ax + Math.cos(angle + Math.PI / 2) * 4, ly = ay + Math.sin(angle + Math.PI / 2) * 4;
+      const rx = ax + Math.cos(angle - Math.PI / 2) * 4, ry = ay + Math.sin(angle - Math.PI / 2) * 4;
+      svg.appendChild(svgEl("polygon", { points: `${b.x},${b.y} ${lx},${ly} ${rx},${ry}`, fill: "var(--green)", opacity: 0.8 }));
+    }
+  }
+
+  if (activeProposal) {
+    const ca = getCardCenter(activeProposal.iface_a_id), cb = getCardCenter(activeProposal.iface_b_id);
+    if (ca && cb) {
+      const [a, b] = anchors(ca, cb);
+      const cx = (a.x + b.x) / 2;
+      svg.appendChild(svgEl("path", { d: `M${a.x},${a.y} C${cx},${a.y} ${cx},${b.y} ${b.x},${b.y}`,
+        stroke: "var(--orange)", "stroke-width": 2, fill: "none", "stroke-dasharray": "4,4", opacity: 0.9 }));
+    }
+  }
+}
+
+// ─────────────────────────────────────────── proposals
+function renderProposals() {
+  const body = document.getElementById("proposals-body");
+  const countEl = document.getElementById("proposal-count");
+  const props = state ? state.pending_proposals : [];
+  const segs = state && Array.isArray(state.segment_proposals) ? state.segment_proposals : [];
+  const gsug = state && Array.isArray(state.group_suggestions) ? state.group_suggestions : [];
+  countEl.textContent = String(props.length + segs.length + gsug.length);
+  if (!props.length && !segs.length && !gsug.length) {
+    body.replaceChildren(el("p", { class: "no-proposals", text:
+      !state ? "Loading…" :
+      state.firewalls.length < 2 ? "Upload a second FW config to see proposals." :
+      "All interfaces linked ✓" }));
+    return;
+  }
+  const segCards = segs.map(sg => {
+    const members = Array.isArray(sg.members) ? sg.members : [];
+    const confirmBtn = el("button", { type: "button", class: "btn btn-confirm", text: "Confirm segment ✓" });
+    confirmBtn.addEventListener("click", e => { e.stopPropagation(); confirmSegment(members.map(m => m.iface_id), confirmBtn); });
+    return el("div", { class: "proposal-card", "data-testid": "segment-card" },
+      el("span", { class: "prop-confidence conf-high", text: "shared segment" }),
+      el("div", { class: "prop-link" },
+        el("span", { class: "prop-cidr", text: `${sg.network} · ${members.length} interfaces on ${new Set(members.map(m => m.fw_id)).size} firewalls` }),
+        ...members.flatMap(m => [el("br"), el("span", { class: "prop-iface", text: `${m.fw_name} / ${m.iface_name}` }),
+                                 el("span", { class: "prop-cidr", text: ` ${m.ip_cidr || ""}` })])),
+      el("div", { class: "prop-actions" }, confirmBtn));
+  });
+  const groupCards = gsug.map(sg => {
+    const ids = (sg.firewalls || []).map(f => f.id);
+    const btn = el("button", { type: "button", class: "btn btn-confirm", text: "Confirm ✓" });
+    btn.addEventListener("click", e => { e.stopPropagation(); declareGroup(sg.kind, ids, btn); });
+    return el("div", { class: "proposal-card", "data-testid": "group-suggestion-card" },
+      el("span", { class: "prop-confidence conf-medium", text: sg.kind === "ha" ? "HA cluster?" : "paired firewall?" }),
+      el("div", { class: "prop-link" },
+        el("span", { class: "prop-iface", text: (sg.firewalls || []).map(f => f.name).join(" + ") }),
+        el("br"), el("span", { class: "prop-cidr", text: sg.reason || "" })),
+      el("div", { class: "prop-actions" }, btn));
+  });
+  body.replaceChildren(...segCards, ...props.map(prop => {
+    const confirmBtn = el("button", { type: "button", class: "btn btn-confirm", text: "Confirm ✓" });
+    confirmBtn.addEventListener("click", e => { e.stopPropagation(); confirmLink(prop.iface_a_id, prop.iface_b_id, confirmBtn); });
+    const card = el("div", { class: "proposal-card", "data-testid": "proposal-card" },
+      el("span", { class: "prop-confidence " + confClass(prop.confidence), text: confLabel(prop.confidence) }),
+      el("div", { class: "prop-link" },
+        el("span", { class: "prop-iface", text: `${prop.fw_a_name} / ${prop.iface_a_name}` }),
+        el("span", { class: "prop-cidr", text: ` ${prop.iface_a_cidr || ""}` }),
+        el("br"), "↔", el("br"),
+        el("span", { class: "prop-iface", text: `${prop.fw_b_name} / ${prop.iface_b_name}` }),
+        el("span", { class: "prop-cidr", text: ` ${prop.iface_b_cidr || ""}` })),
+      el("div", { class: "prop-actions" }, confirmBtn,
+        el("button", { type: "button", class: "btn", text: "Show", onclick: e => highlightProposal(e, prop) })));
+    card.addEventListener("mouseenter", () => highlightProposalCards(prop, true));
+    card.addEventListener("mouseleave", () => {
+      if (activeProposal !== prop) highlightProposalCards(prop, false);
+    });
+    return card;
+  }), ...groupCards);
+}
+
+function highlightProposalCards(prop, on) {
+  for (const id of [prop.iface_a_id, prop.iface_b_id]) {
+    if (ifaceEls[id]) ifaceEls[id].classList.toggle("proposal-target", on);
+  }
+}
+
+function highlightProposal(evt, prop) {
+  evt.stopPropagation();
+  if (activeProposal) highlightProposalCards(activeProposal, false);
+  activeProposal = prop;
+  const n = ifaceEls[prop.iface_a_id];
+  if (n) n.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  highlightProposalCards(prop, true);
+  requestAnimationFrame(drawLinks);
+}
+
+async function confirmSegment(ifaceIds, btn) {
+  btn.disabled = true;
+  btn.textContent = "Confirming…";
+  try {
+    const r = await postJson("/topology/confirm-segment", { iface_ids: ifaceIds });
+    showAction(`Segment ${r.segment} confirmed · ${summarizeChecks(r.cross_fw_checks)}`);
+    await load();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "Confirm segment ✓";
+    setStatus("", `Confirm failed: ${e.message}`);
+  }
+}
+
+async function confirmLink(ifaceAId, ifaceBId, btn) {
+  btn.disabled = true;
+  btn.textContent = "Confirming…";
+  try {
+    const r = await postJson("/topology/confirm-link", { iface_a_id: ifaceAId, iface_b_id: ifaceBId });
+    showAction(`Link confirmed · ${summarizeChecks(r.cross_fw_checks)}`);
+    await load();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "Confirm ✓";
+    setStatus("", `Confirm failed: ${e.message}`);
+  }
+}
+
+// ─────────────────────────────────────────── header actions
+function showAction(msg) {
+  const n = document.getElementById("action-result");
+  n.textContent = msg;
+  n.title = msg;
+}
+function summarizeChecks(c) {
+  if (!c || typeof c !== "object") return "";
+  if (c.error) return `checks error: ${c.error}`;
+  const created = c.findings_created ?? c.created ?? c.total_created;
+  const links = c.links_analysed !== undefined ? `${c.links_analysed} link(s) analysed, ` : "";
+  return created !== undefined ? `${links}${created} finding(s) created` : "checks ran";
+}
+
+async function runSuggest() {
+  showAction("Running Purdue suggestions…");
+  try {
+    const r = await postJson("/topology/suggest-purdue", {});
+    showAction(`Purdue suggestions: ${r.interfaces_updated ?? 0} interface(s) updated`);
+    await load();
+  } catch (e) { showAction(`Suggest failed: ${e.message}`); }
+}
+
+async function runChecks() {
+  showAction("Running cross-FW checks…");
+  try {
+    const r = await postJson("/topology/run-checks", {});
+    showAction(`Cross-FW checks done · ${summarizeChecks(r)}`);
+    await load();
+  } catch (e) { showAction(`Checks failed: ${e.message}`); }
+}
+
+// ─────────────────────────────────────────── interface selection + right panel
+function selectIface(iface, fw) {
+  if (selectedIface && ifaceEls[selectedIface.iface.id]) {
+    ifaceEls[selectedIface.iface.id].classList.remove("selected");
+    ifaceEls[selectedIface.iface.id].setAttribute("aria-pressed", "false");
+  }
+  selectedIface = { iface, fw };
+  if (ifaceEls[iface.id]) { ifaceEls[iface.id].classList.add("selected"); ifaceEls[iface.id].setAttribute("aria-pressed", "true"); }
+  renderRightPanel(iface, fw);
+}
+
+function field(label, ...content) {
+  return el("div", { class: "rp-field" }, el("div", { class: "rp-label" }, label), ...content);
+}
+function levelSelect(id, current, blankLabel) {
+  return el("select", { class: "rp-select", id },
+    el("option", { value: "", text: blankLabel }),
+    LEVELS.map(n => el("option", { value: String(n), text: `${fmtLevel(n)} — ${LEVEL_DESC[n]}`, selected: current === n })));
+}
+
+function renderRightPanel(iface, fw) {
+  const title = document.getElementById("rp-title");
+  const body  = document.getElementById("rp-body");
+  if (!iface) {
+    title.textContent = "Select an interface";
+    body.replaceChildren(el("p", { id: "empty-right",
+      text: "Click any interface card to view details and set its side, zone, and Purdue level." }));
+    return;
+  }
+  title.textContent = `${fw.name} / ${iface.name}`;
+
+  let linkedTo = null;
+  if (iface.connects_to_interface_id && state) {
+    for (const f of state.firewalls) for (const i of f.interfaces)
+      if (i.id === iface.connects_to_interface_id) linkedTo = { iface: i, fw: f };
+  }
+
+  const hasSuggestion = isLevel(iface.suggested_purdue_level) && !isLevel(iface.purdue_level);
+  const zoneInput = el("input", { class: "rp-input", id: "rp-zone", type: "text", placeholder: "e.g. OT Floor, DMZ" });
+  zoneInput.value = iface.zone_label || "";
+  const saveMsg = el("div", { id: "rp-save-msg", style: "font-size:11px;margin-top:6px;color:var(--green)" });
+  const chainMsg = el("div", { id: "rp-chain-msg", style: "font-size:11px;margin-top:6px;color:var(--green)" });
+  const confirmed = el("input", { type: "checkbox", id: "rp-confirmed", checked: !!fw.topology_confirmed });
+
+  put(body, 
+    linkedTo ? el("div", { class: "rp-link-info" },
+      el("div", { class: "link-label", text: "Linked to" }),
+      el("div", { style: "font-family:monospace;font-size:11px", text: `${linkedTo.fw.name} / ${linkedTo.iface.name}` }),
+      linkedTo.iface.ip_cidr ? el("div", { style: "color:var(--muted);font-size:10px;font-family:monospace", text: linkedTo.iface.ip_cidr }) : null)
+      : null,
+    field("IP / CIDR", el("div", { class: "rp-value", text: iface.ip_cidr || "—" })),
+    field("Network", el("div", { class: "rp-value", text: iface.network_cidr || "—" })),
+    field("Flags", el("div", { class: "rp-value", style: "font-size:11px;color:var(--muted)",
+      text: `${iface.is_ha ? "HA · " : ""}${iface.is_mgmt_only ? "mgmt-only" : "routed"}` })),
+    el("hr", { style: "border:none;border-top:1px solid var(--border);margin:10px 0" }),
+    field("Side", el("select", { class: "rp-select", id: "rp-side" },
+      el("option", { value: "", text: SIDES.includes(iface.side) ? "— keep current —" : "— unset —" }),
+      SIDES.map(sd => el("option", { value: sd, text: sd, selected: iface.side === sd })))),
+    field("Zone label", zoneInput),
+    field(["Purdue level", hasSuggestion
+      ? el("span", { style: "margin-left:6px;font-size:10px;color:var(--orange);font-weight:normal" },
+          `suggested: ${fmtLevel(iface.suggested_purdue_level)} `,
+          el("span", { style: "color:var(--muted)", text: `(${iface.purdue_suggestion_source || ""})` }))
+      : null],
+      levelSelect("rp-purdue", iface.purdue_level, isLevel(iface.purdue_level) ? "— keep current —" : "— unset —"),
+      hasSuggestion ? el("button", { type: "button", class: "btn", style: "margin-top:4px;font-size:11px;padding:3px 8px",
+        text: `Accept ${fmtLevel(iface.suggested_purdue_level)}`,
+        onclick: () => acceptPurdueSuggestion(iface.id, iface.suggested_purdue_level) }) : null),
+    el("button", { type: "button", class: "btn btn-primary rp-save-btn", id: "rp-save-btn", text: "Save labels",
+                   onclick: () => saveInterfaceLabels(iface.id) }),
+    saveMsg,
+    el("hr", { style: "border:none;border-top:1px solid var(--border);margin:12px 0" }),
+    el("div", { style: "font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase", text: "Firewall chain" }),
+    field("Upstream firewall", el("select", { class: "rp-select", id: "rp-upstream-fw" },
+      el("option", { value: "", text: "— perimeter (none) —" }),
+      (state?.firewalls || []).filter(f => f.id !== fw.id).map(f =>
+        el("option", { value: f.id, text: f.name, selected: fw.upstream_firewall_id === f.id })))),
+    el("div", { style: "display:flex;gap:8px" },
+      el("div", { class: "rp-field", style: "flex:1" }, el("div", { class: "rp-label", text: "Ingress zone level" }),
+        levelSelect("rp-ingress-level", fw.purdue_level_ingress, "—")),
+      el("div", { class: "rp-field", style: "flex:1" }, el("div", { class: "rp-label", text: "Egress zone level" }),
+        levelSelect("rp-egress-level", fw.purdue_level_egress, "—"))),
+    el("label", { class: "rp-check" }, confirmed, "Topology confirmed"),
+    el("button", { type: "button", class: "btn btn-primary", style: "width:100%;margin-top:4px", text: "Save firewall chain",
+                   onclick: () => saveFwChain(fw.id) }),
+    chainMsg);
+}
+
+function msgOk(n, text) { n.textContent = text; n.style.color = "var(--green)"; }
+function msgErr(n, text) { n.textContent = text; n.style.color = "var(--red)"; }
+function msgBusy(n, text) { n.textContent = text; n.style.color = "var(--muted)"; }
+
+async function saveInterfaceLabels(ifaceId) {
+  const side      = document.getElementById("rp-side").value;
+  const zone      = document.getElementById("rp-zone").value.trim();
+  const purdueRaw = document.getElementById("rp-purdue").value;
+  const msg = document.getElementById("rp-save-msg");
+  msgBusy(msg, "Saving…");
+  // The API only updates keys that are present and non-null; zone_label ""
+  // clears the label.
+  const body = { interface_id: ifaceId, zone_label: zone };
+  if (side) body.side = side;
+  if (purdueRaw !== "") body.purdue_level = parseLevel(purdueRaw);
+  try {
+    await postJson("/topology/set-interface-side", body);
+    await reloadKeepingSelection(ifaceId);
+    msgOk(document.getElementById("rp-save-msg") || msg, "Saved ✓");
+  } catch (e) { msgErr(msg, `Error: ${e.message}`); }
+}
+
+async function acceptPurdueSuggestion(ifaceId, level) {
+  const msg = document.getElementById("rp-save-msg");
+  msgBusy(msg, "Accepting…");
+  try {
+    await postJson("/topology/set-interface-side", { interface_id: ifaceId, purdue_level: level });
+    await reloadKeepingSelection(ifaceId);
+    msgOk(document.getElementById("rp-save-msg") || msg, `Accepted ${fmtLevel(level)} ✓`);
+  } catch (e) { msgErr(msg, `Error: ${e.message}`); }
+}
+
+async function saveFwChain(fwId) {
+  const upstream = document.getElementById("rp-upstream-fw").value;
+  const ingress  = document.getElementById("rp-ingress-level").value;
+  const egress   = document.getElementById("rp-egress-level").value;
+  const msg = document.getElementById("rp-chain-msg");
+  msgBusy(msg, "Saving…");
+  const body = {
+    firewall_id: fwId,
+    upstream_firewall_id: upstream ? parseInt(upstream, 10) : null,
+    topology_confirmed: document.getElementById("rp-confirmed").checked,
+  };
+  if (ingress !== "") body.purdue_level_ingress = parseLevel(ingress);
+  if (egress  !== "") body.purdue_level_egress  = parseLevel(egress);
+  const ifaceId = selectedIface?.iface.id;
+  try {
+    const data = await postJson("/topology/set-upstream", body);
+    await reloadKeepingSelection(ifaceId);
+    msgOk(document.getElementById("rp-chain-msg") || msg,
+      `Saved ✓ — ${data.purdue_suggestions?.interfaces_updated ?? 0} Purdue suggestions updated`);
+  } catch (e) { msgErr(msg, `Error: ${e.message}`); }
+}
+
+async function reloadKeepingSelection(ifaceId) {
+  await load();
+  if (ifaceId === undefined || !state) return;
+  for (const f of state.firewalls) for (const i of f.interfaces)
+    if (i.id === ifaceId) { selectIface(i, f); return; }
+}
+
+// ─────────────────────────────────────────── PCAP upload
+function populatePcapFwSelect() {
+  const sel = document.getElementById("pcap-fw-select");
+  const cur = sel.value;
+  sel.replaceChildren(el("option", { value: "", text: "— auto-detect —" }),
+    ...(state?.firewalls || []).map(fw => el("option", { value: fw.id, text: fw.name })));
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+
+async function uploadPcap() {
+  const fileInput = document.getElementById("pcap-file");
+  const file = fileInput.files[0];
+  if (!file) return;
+  const fwId  = document.getElementById("pcap-fw-select").value;
+  const side  = document.getElementById("pcap-side-select").value;
+  const result = document.getElementById("pcap-result");
+  if (!siteId()) {  // uploads need a site: the Site selector in the header
+    result.replaceChildren(el("span", { style: "color:var(--red)", text: "Choose the site this capture belongs to (Site selector at the top) first." }));
+    fileInput.value = "";
+    return;
+  }
+  result.replaceChildren(el("span", { style: "color:var(--muted)", text: "Uploading…" }));
+
+  const fd = new FormData();
+  fd.append("file", file);
+  const params = new URLSearchParams();
+  params.set("site", siteId());
+  if (fwId) params.set("firewall_id", fwId);
+  if (side) params.set("side", side);
+  const qs = params.toString();
+
+  try {
+    const data = await api(`/ingest/pcap-fw${qs ? "?" + qs : ""}`, { method: "POST", body: fd });
+    const s = data.suggestion;
+    const confirmMsg = el("div", { id: "pcap-confirm-msg", style: "font-size:10px;margin-top:4px" });
+    const st = data.stats || {};
+    result.replaceChildren(el("div", { class: "pcap-suggestion", "data-testid": "pcap-result" },
+      el("div", { style: "font-size:11px;color:var(--text);margin-bottom:4px",
+        text: `${Number(data.packet_count) || 0} packets · ${Number(data.sampled_ips) || 0} IPs sampled · capture #${data.capture_id}` }),
+      el("div", { style: "font-size:10px;color:var(--muted);margin-bottom:4px",
+        text: Object.entries(st).filter(([, v]) => typeof v === "number").map(([k, v]) => `${k}: ${v}`).join(" · ") }),
+      s ? [
+        el("span", { class: "prop-confidence " + confClass(s.confidence), text: confLabel(s.confidence) }),
+        el("div", { style: "font-size:11px;margin-top:4px" },
+          "Suggested: ", el("span", { style: "font-family:monospace", text: s.interface_name }), el("br"),
+          el("span", { style: "color:var(--muted);font-size:10px;font-family:monospace",
+            text: `${s.network_cidr || ""} · score ${((Number(s.score) || 0) * 100).toFixed(0)}%` })),
+        el("button", { type: "button", class: "btn btn-confirm", style: "margin-top:6px;width:100%", text: "Confirm assignment ✓",
+          onclick: () => confirmPcap(data.capture_id, s.interface_id) }),
+        confirmMsg,
+      ] : el("div", { style: "color:var(--muted);font-size:11px", text: "No matching interface found — confirm manually." })));
+  } catch (e) {
+    result.replaceChildren(el("span", { style: "color:var(--red)", text: `Error: ${e.message}` }));
+  }
+  fileInput.value = "";
+}
+
+async function confirmPcap(captureId, interfaceId) {
+  const side = document.getElementById("pcap-side-select").value;
+  const msg  = document.getElementById("pcap-confirm-msg");
+  msgBusy(msg, "Confirming…");
+  const body = { interface_id: interfaceId };
+  if (side) body.side = side;
+  try {
+    await postJson(`/ingest/pcap/${encodeURIComponent(captureId)}/confirm`, body);
+    msgOk(msg, "Confirmed ✓");
+    await load();
+  } catch (e) { msgErr(msg, `Error: ${e.message}`); }
+}
+
+// ─────────────────────────────────────────── boot
+document.getElementById("reload-btn").addEventListener("click", load);
+document.getElementById("suggest-btn").addEventListener("click", runSuggest);
+document.getElementById("checks-btn").addEventListener("click", runChecks);
+document.getElementById("pcap-file-btn").addEventListener("click", () => document.getElementById("pcap-file").click());
+document.getElementById("pcap-file").addEventListener("change", uploadPcap);
+window.addEventListener("resize", () => requestAnimationFrame(drawLinks));
+document.getElementById("canvas-scroll").addEventListener("scroll", () => requestAnimationFrame(drawLinks));
+initSiteFilter(apiBase, load).finally(load);
+</script>
+</body>
+</html>

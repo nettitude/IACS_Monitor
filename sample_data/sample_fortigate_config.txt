@@ -1,0 +1,201 @@
+config system global
+    set hostname FG-OT-PERIMETER-01
+    set alias "OT Perimeter Firewall"
+    set timezone 75
+end
+config system interface
+    edit "port1"
+        set vdom "root"
+        set ip 10.0.1.1 255.255.255.0
+        set allowaccess ping https ssh
+        set type physical
+        set zone "OT_ZONE"
+        set alias "OT Control Network"
+    next
+    edit "port2"
+        set vdom "root"
+        set ip 10.0.2.1 255.255.255.0
+        set type physical
+        set zone "DMZ_ZONE"
+        set alias "IT-OT DMZ"
+    next
+    edit "port3"
+        set vdom "root"
+        set ip 10.0.4.1 255.255.255.0
+        set type physical
+        set zone "IT_ZONE"
+        set alias "IT Network"
+    next
+end
+config system dns
+    set primary 10.0.4.10
+    set secondary 8.8.8.8
+end
+config system ntp
+    set type fortiguard
+    set server "time.fortiguard.com"
+end
+config firewall address
+    edit "Host-PLC-01"
+        set type ipmask
+        set subnet 10.0.1.10 255.255.255.255
+        set comment "Siemens S7-1500 PLC"
+    next
+    edit "Host-PLC-02"
+        set type ipmask
+        set subnet 10.0.1.11 255.255.255.255
+        set comment "Rockwell ControlLogix PLC"
+    next
+    edit "Host-HMI-01"
+        set type ipmask
+        set subnet 10.0.1.20 255.255.255.255
+        set comment "SCADA HMI"
+    next
+    edit "Host-JumpServer"
+        set type ipmask
+        set subnet 10.0.2.50 255.255.255.255
+        set comment "Approved jump host"
+    next
+    edit "Net-Engineering"
+        set type ipmask
+        set subnet 10.0.1.0 255.255.255.0
+    next
+    edit "Net-DMZ"
+        set type ipmask
+        set subnet 10.0.2.0 255.255.255.0
+    next
+    edit "WinUpdate-FQDN"
+        set type fqdn
+        set fqdn windowsupdate.microsoft.com
+        set comment "Windows Update FQDN - should not be reachable from OT"
+    next
+end
+config firewall addrgrp
+    edit "OT-PLCs"
+        set member "Host-PLC-01" "Host-PLC-02"
+        set comment "All PLCs"
+    next
+    edit "OT-All-Devices"
+        set member "OT-PLCs" "Host-HMI-01"
+        set comment "All OT assets (nested group)"
+    next
+end
+config firewall service custom
+    edit "Modbus-TCP"
+        set protocol TCP
+        set tcp-portrange 502
+        set comment "Modbus/TCP port 502"
+    next
+    edit "S7comm"
+        set protocol TCP
+        set tcp-portrange 102
+        set comment "Siemens S7 ISO-TSAP"
+    next
+    edit "EtherNet-IP-CIP"
+        set protocol TCP
+        set tcp-portrange 44818
+        set comment "Rockwell EtherNet/IP"
+    next
+    edit "DNP3-TCP"
+        set protocol TCP
+        set tcp-portrange 20000
+        set comment "DNP3 over TCP"
+    next
+end
+config firewall service group
+    edit "ICS-Protocols"
+        set member "Modbus-TCP" "S7comm" "EtherNet-IP-CIP" "DNP3-TCP"
+        set comment "All ICS protocol services"
+    next
+end
+config firewall policy
+    edit 10
+        set name "HMI-to-PLCs-ICS"
+        set srcintf "port1"
+        set dstintf "port1"
+        set srcaddr "Host-HMI-01"
+        set dstaddr "OT-PLCs"
+        set service "ICS-Protocols"
+        set action accept
+        set logtraffic all
+        set ips-sensor "OT-IPS-Profile"
+        set comments "Owner: OT-Ops / ISA62443 SR 2.1 approved comms"
+    next
+    edit 20
+        set name "JumpHost-to-OT-SSH"
+        set srcintf "port2"
+        set dstintf "port1"
+        set srcaddr "Host-JumpServer"
+        set dstaddr "Net-Engineering"
+        set service "SSH"
+        set action accept
+        set logtraffic all
+        set ips-sensor "OT-IPS-Profile"
+        set comments "Owner: IT-Sec / Remote admin via jump host only - SR 1.13"
+    next
+    edit 30
+        set name "OT-to-DMZ-Historian"
+        set srcintf "port1"
+        set dstintf "port2"
+        set srcaddr "OT-All-Devices"
+        set dstaddr "Net-DMZ"
+        set service "HTTPS"
+        set action accept
+        set logtraffic all
+        set comments "OT historian data to DMZ - SR 7.3"
+    next
+    edit 98
+        set name "No-Logging-Legacy"
+        set srcintf "port1"
+        set dstintf "port1"
+        set srcaddr "Net-Engineering"
+        set dstaddr "Net-Engineering"
+        set service "ALL"
+        set action accept
+        set logtraffic disable
+        set comments "Legacy rule - logging disabled"
+    next
+    edit 99
+        set name "Deny-IT-to-OT-Direct"
+        set srcintf "port3"
+        set dstintf "port1"
+        set srcaddr "all"
+        set dstaddr "all"
+        set service "ALL"
+        set action deny
+        set logtraffic all
+        set comments "Block direct IT-to-OT (no DMZ bypass) - SR 5.1"
+    next
+    edit 100
+        set name "Deny-All-Implicit"
+        set srcintf "any"
+        set dstintf "any"
+        set srcaddr "all"
+        set dstaddr "all"
+        set service "ALL"
+        set action deny
+        set logtraffic all
+    next
+end
+config system admin
+    edit "admin"
+        set accprofile "super_admin"
+        set trusthost1 10.0.4.50 255.255.255.255
+        set trusthost2 10.0.2.50 255.255.255.255
+    next
+    edit "ot-readonly"
+        set accprofile "read-only"
+        set trusthost1 10.0.1.100 255.255.255.255
+    next
+end
+config vpn ssl settings
+    set source-interface "port3"
+    set source-address "all"
+    set default-portal "full-access"
+end
+config system ha
+    set mode a-p
+    set group-name "OT-FW-HA"
+    set password ENC SomeHashedPassword
+    set priority 200
+end

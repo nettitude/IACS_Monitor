@@ -1,0 +1,43 @@
+# IACS_Monitor - production stack (SQLite on a named volume).
+#   docker compose up -d --build        build + start
+#   docker compose logs -f              follow logs
+#   docker compose exec iasc-monitor python backup_db.py   online DB backup
+# Full guide: docs/docker-install.md
+services:
+  iasc-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: iasc-monitor:${IACS_IMAGE_TAG:-latest}
+    container_name: iasc-monitor
+    ports:
+      # Loopback only by default (A-03): the API has no authentication yet,
+      # and Docker-published ports bypass host firewalls such as ufw.  Set
+      # IACS_BIND_ADDR=0.0.0.0 (or an interface address) in .env only behind
+      # an authenticating reverse proxy or on a trusted management network.
+      - "${IACS_BIND_ADDR:-127.0.0.1}:${IACS_PORT:-8000}:8000"
+    volumes:
+      # Database, WAL, scheduler lock, upload spool (TMPDIR) and backups.
+      # Survives restarts, host reboots, `docker compose down` and image
+      # upgrades; deleted only by `docker compose down -v` / `docker volume rm`.
+      - iasc_data:/data
+    environment:
+      IACS_DATABASE_URL: sqlite:////data/iasc_monitor.db
+      # Largest accepted upload (bytes); default 50 MiB PCAP + 2 MiB.
+      IACS_MAX_REQUEST_BYTES: ${IACS_MAX_REQUEST_BYTES:-54525952}
+      # Scheduled periodic reviews (cron-style, see README "Configuration").
+      IACS_REVIEW_ENABLED: ${IACS_REVIEW_ENABLED:-true}
+      # Optional: a real manuf file for MAC vendor lookup (README "MAC vendor lookup")
+      # IACS_MANUF_FILE: /data/manuf
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  iasc_data:
+    name: iasc_data

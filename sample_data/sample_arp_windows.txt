@@ -1,0 +1,5 @@
+Interface: 10.0.1.5 --- 0x3
+  Internet Address      Physical Address      Type
+  10.0.1.1              00-11-22-33-44-55     dynamic
+  10.0.1.10             00-22-33-44-55-66     dynamic
+  10.0.1.50             00-33-44-55-66-77     dynamic

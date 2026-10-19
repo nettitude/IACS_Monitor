@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IACS_Monitor - Findings</title>
+<style>
+  :root {
+    --bg: #0f1720; --panel: #161f2c; --border: #2a3648; --text: #e6edf3;
+    --muted: #8b98a8; --accent: #4d9de0; --accent-hover: #3a86c9;
+    --success: #3fb950; --error: #f85149; --warning: #d29922;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { overflow-x: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", sans-serif; font-size: 13px; }
+
+  #header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+  #header h1 { font-size: 16px; font-weight: 500; }
+  #api-base { background: #0d141d; border: 1px solid var(--border); border-radius: 5px; padding: 6px 10px; color: var(--text); font-size: 12px; width: 220px; max-width: 100%; }
+  button { background: transparent; border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 6px 14px; font-size: 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: white; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #status { color: var(--muted); font-size: 12px; margin-left: auto; }
+  #error-msg { color: var(--error); font-size: 12px; }
+
+  #summary { display: flex; gap: 10px; padding: 14px 20px 6px; flex-wrap: wrap; }
+  .summary-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; min-width: 90px; cursor: pointer; transition: border-color 0.1s; color: var(--text); text-align: left; }
+  .summary-card:hover { border-color: var(--accent); }
+  .summary-card.active { border-color: var(--accent); background: #1a2535; }
+  .summary-count { font-size: 22px; font-weight: 600; }
+  .summary-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .sev-critical .summary-count { color: #f85149; }
+  .sev-high .summary-count { color: #d8825a; }
+  .sev-medium .summary-count { color: #d29922; }
+  .sev-low .summary-count { color: #5d90d8; }
+  .sev-info .summary-count { color: var(--muted); }
+  #summary-cats { padding: 0 20px 12px; color: var(--muted); font-size: 11px; display: flex; gap: 6px 14px; flex-wrap: wrap; }
+  #summary-cats b { color: var(--text); font-weight: 600; }
+  #summary-status { padding: 0 20px 8px; color: var(--muted); font-size: 11px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .status-chip { cursor: pointer; font-size: 11px; padding: 3px 9px; }
+  .status-chip b { font-weight: 600; }
+  .status-chip.active { box-shadow: 0 0 0 1px currentColor; }
+
+  #controls { display: flex; gap: 8px 10px; padding: 0 20px 14px; flex-wrap: wrap; align-items: center; }
+  select, input[type="text"] {
+    background: #0d141d; border: 1px solid var(--border); border-radius: 5px;
+    color: var(--text); padding: 6px 10px; font-size: 12px; max-width: 100%;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--accent); }
+  .control-label { font-size: 11px; color: var(--muted); }
+  .ctl { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  #list-note { margin: 0 20px 8px; color: var(--muted); font-size: 11px; font-style: italic; }
+  #list-note[hidden] { display: none; }
+
+  #main { display: flex; height: calc(100vh - 230px); min-height: 360px; }
+  #list-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #list-wrap { flex: 1; overflow-y: auto; padding: 0 20px 10px; }
+  #pager { display: flex; gap: 10px; align-items: center; padding: 8px 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+
+  .group-header {
+    display: flex; align-items: center; gap: 8px; padding: 8px 4px;
+    color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border); margin-top: 14px;
+  }
+  .group-header:first-child { margin-top: 0; }
+  .group-key { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .group-count { background: var(--border); border-radius: 10px; padding: 1px 8px; font-size: 10px; flex-shrink: 0; }
+
+  .finding-row {
+    display: flex; align-items: center; gap: 8px 10px; padding: 9px 8px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s;
+    border-left: 3px solid transparent;
+  }
+  .finding-row:hover { background: #131b26; }
+  .finding-row.selected { background: #1a2535; }
+  .finding-row.st-open { border-left-color: rgba(248,81,73,0.6); }
+  .finding-row.st-acknowledged { border-left-color: var(--warning); }
+  .finding-row.st-closed { border-left-color: var(--success); opacity: 0.6; }
+  .finding-row.st-closed .finding-title { text-decoration: line-through; text-decoration-color: rgba(230,237,243,0.35); }
+
+  .badge { padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+  .badge-critical { background: rgba(248,81,73,0.15); color: #f85149; }
+  .badge-high { background: rgba(216,130,90,0.15); color: #d8825a; }
+  .badge-medium { background: rgba(210,153,34,0.15); color: #d29922; }
+  .badge-low { background: rgba(93,144,216,0.15); color: #5d90d8; }
+  .badge-info { background: rgba(139,152,168,0.15); color: var(--muted); }
+
+  .status-badge { padding: 2px 7px; border-radius: 4px; font-size: 10px; white-space: nowrap; border: 1px solid transparent; }
+  .status-open { background: rgba(248,81,73,0.12); color: #f85149; border-color: rgba(248,81,73,0.35); }
+  .status-acknowledged { background: rgba(210,153,34,0.12); color: #d29922; border-color: rgba(210,153,34,0.35); }
+  .status-closed { background: rgba(63,185,80,0.12); color: #3fb950; border-color: rgba(63,185,80,0.35); }
+  .status-unknown { background: rgba(139,152,168,0.12); color: var(--muted); border-color: var(--border); }
+
+  .sr-badge { background: #1c2735; color: var(--muted); padding: 2px 7px; border-radius: 4px; font-size: 10px; font-family: ui-monospace, monospace; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .check-badge { color: var(--accent); }
+
+  .finding-title { flex: 1 1 200px; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .finding-device { color: var(--muted); font-size: 11px; width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .finding-time { color: var(--muted); font-size: 11px; width: 70px; text-align: right; }
+
+  #side-panel {
+    width: 380px; flex-shrink: 0; background: var(--panel); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+  .panel-empty { padding: 40px 20px; color: var(--muted); font-size: 12px; text-align: center; }
+  .panel-section { padding: 16px 18px; border-bottom: 1px solid var(--border); }
+  .panel-title { font-size: 14px; font-weight: 500; margin-bottom: 10px; line-height: 1.4; word-break: break-word; }
+  .panel-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .detail-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin: 10px 0 4px; }
+  .detail-value { font-size: 12px; word-break: break-word; }
+  .detail-json { background: #0d141d; border-radius: 5px; padding: 8px 10px; font-family: ui-monospace, monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; }
+
+  textarea {
+    width: 100%; background: #0d141d; border: 1px solid var(--border); border-radius: 5px;
+    color: var(--text); padding: 8px 10px; font-size: 12px; font-family: inherit; resize: vertical; min-height: 60px;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  label { display: block; font-size: 11px; color: var(--muted); margin: 10px 0 4px; }
+  .edit-field { width: 100%; }
+
+  #empty-state { padding: 60px 20px; text-align: center; color: var(--muted); }
+  .occ-badge { font-size: 10px; color: var(--muted); background: var(--border); border-radius: 10px; padding: 1px 7px; white-space: nowrap; }
+  #run-result { margin: 0 20px 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
+  #run-result[hidden] { display: none; }
+  .run-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); margin-bottom: 6px; }
+  .run-stats b { color: var(--text); }
+  .run-stats .bad b, .run-failed { color: var(--error); }
+  .run-table { border-collapse: collapse; width: 100%; font-size: 11.5px; margin-top: 4px; }
+  .run-table th { text-align: left; color: var(--muted); font-weight: 500; padding: 3px 6px; border-bottom: 1px solid var(--border); }
+  .run-table td { padding: 3px 6px; border-bottom: 1px solid var(--border); word-break: break-word; }
+  .run-table td.num { text-align: right; white-space: nowrap; }
+  .run-wrap { overflow-x: auto; max-height: 260px; overflow-y: auto; }
+
+  @media (max-width: 800px) {
+    #header, #summary, #summary-status, #summary-cats, #controls, #list-wrap, #pager { padding-left: 12px; padding-right: 12px; }
+    #list-note, #run-result { margin-left: 12px; margin-right: 12px; }
+    #main { flex-direction: column; height: auto; }
+    #list-wrap { max-height: 70vh; }
+    #side-panel { width: 100%; border-left: none; border-top: 1px solid var(--border); }
+    .finding-device, .finding-time { width: auto; }
+    #controls { display: grid; grid-template-columns: 1fr 1fr; }
+    .ctl { flex-direction: column; align-items: stretch; gap: 3px; }
+    .ctl select, .ctl input { width: 100%; }
+    #status { margin-left: 0; }
+  }
+  /* B-23: visible keyboard focus on every interactive element */
+  button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>IACS_Monitor — 62443 Findings</h1>
+  <input id="api-base" type="text" placeholder="API base URL" aria-label="API base URL">
+  <select id="site-filter" aria-label="Site" title="Show findings of this site" data-testid="site-filter"></select>
+  <button id="reload-btn" type="button">Reload ↗</button>
+  <button id="run-reviews-btn" type="button" title="POST /reviews/run - run all periodic 62443 reviews now for the selected site">Run reviews now</button>
+  <span id="status"></span>
+  <span id="error-msg"></span>
+</div>
+
+<div id="summary" aria-label="Open findings by severity"></div>
+<div id="summary-status"></div>
+<div id="summary-cats"></div>
+
+<div id="controls">
+  <div class="ctl">
+  <span class="control-label">Status</span>
+  <select id="filter-status">
+    <option value="">All</option>
+    <option value="open">Open</option>
+    <option value="acknowledged">Acknowledged</option>
+    <option value="closed">Closed</option>
+  </select>
+  </div>
+
+  <div class="ctl">
+  <span class="control-label">Severity</span>
+  <select id="filter-severity">
+    <option value="">All</option>
+    <option value="critical">Critical</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+    <option value="info">Info</option>
+  </select>
+  </div>
+
+  <div class="ctl">
+  <span class="control-label">Category</span>
+  <select id="filter-category">
+    <option value="">All</option>
+    <option value="config_review">Config Review</option>
+    <option value="real_time">Real-Time</option>
+    <option value="periodic_review">Periodic Review</option>
+  </select>
+  </div>
+
+  <div class="ctl">
+  <span class="control-label">Check</span>
+  <select id="filter-check"><option value="">All</option></select>
+  </div>
+
+  <div class="ctl">
+  <span class="control-label">Group by</span>
+  <select id="group-by">
+    <option value="none">None (flat list)</option>
+    <option value="isa62443_sr">62443 SR reference</option>
+    <option value="checklist_id">Checklist ID</option>
+    <option value="check_name">Check name</option>
+    <option value="category">Category</option>
+    <option value="device_name">Device</option>
+    <option value="status">Status</option>
+    <option value="severity">Severity</option>
+  </select>
+  </div>
+
+  <div class="ctl">
+  <span class="control-label">Search</span>
+  <input type="search" id="filter-search" placeholder="search all: title, check, SR, checklist, device" title="Server-side search (GET /findings?q=) over title, check name, SR, checklist ID and device; combines with the other filters" maxlength="200">
+  </div>
+</div>
+
+<div id="run-result" role="status" data-testid="reviews-run-result" hidden></div>
+<div id="list-note" hidden></div>
+
+<div id="main">
+  <div id="list-col">
+    <div id="list-wrap"></div>
+    <div id="pager">
+      <button id="page-prev" type="button">‹ Prev</button>
+      <span id="page-info"></span>
+      <button id="page-next" type="button">Next ›</button>
+      <span class="control-label" style="margin-left:auto">Per page</span>
+      <select id="page-size">
+        <option value="25">25</option>
+        <option value="50" selected>50</option>
+        <option value="100">100</option>
+      </select>
+    </div>
+  </div>
+  <div id="side-panel">
+    <div class="panel-empty">Select a finding to view details and edit its status.</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+// Every value that comes from the API is attacker-influenced (device names
+// from syslog devname=, rule text, filenames, vendor strings...). This page
+// never feeds API data to innerHTML: all rendering goes through el(), which
+// only ever sets textContent / attributes via DOM APIs.
+
+const SEVERITIES = ["critical", "high", "medium", "low", "info"];
+const STATUSES = ["open", "acknowledged", "closed"];
+
+let allFindings = [], filteredFindings = [], selectedId = null;
+let selectedFinding = null;   // kept even when a reload moves it off the current page/filter
+// Paging is server-side: GET /findings?limit=<page size>&offset=<page*size>,
+// total from the X-Total-Count header. Search is server-side too
+// (GET /findings?q=..., debounced); group-by acts on the current page only.
+let page = 0, total = 0, summary = null;
+
+function defaultApiBase() {
+  return /^https?:$/.test(location.protocol) ? location.origin : "http://localhost:8000";
+}
+const apiBaseEl = document.getElementById("api-base");
+apiBaseEl.value = defaultApiBase();
+function apiBase() { return apiBaseEl.value.trim().replace(/\/+$/, ""); }
+
+/** Build a DOM element. attrs: class, text, dataset, on<Event>, or plain attributes. */
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "text") e.textContent = String(v);
+    else if (k === "dataset") Object.assign(e.dataset, v);
+    else if (k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : String(v));
+  }
+  for (const c of children.flat()) {
+    if (c === null || c === undefined || c === false) continue;
+    e.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return e;
+}
+
+// ---- sites (multi-site phase 1) ----
+// The selection is shared with the console (/ui) through localStorage
+// ("iasc_site"); always one site (owner 2026-10-13).  List fetches add ?site_id=<id>.
+const SITE_KEY = "iasc_site";
+function siteId() { const s = document.getElementById("site-filter"); return s ? s.value : ""; }
+function withSite(path) {
+  const id = siteId();
+  return id ? path + (path.includes("?") ? "&" : "?") + "site_id=" + encodeURIComponent(id) : path;
+}
+// B-23: per-view load guard (same pattern as the console /ui).  beginLoad()
+// captures the site once, aborts the view's previous in-flight request and
+// returns g: g.withSite(path) adds that captured site, g.signal aborts, and
+// g.stale() is true once a newer load started or the site selector changed.
+const VIEW_LOADS = {};
+let loadCounter = 0;
+function beginLoad(view) {
+  const prev = VIEW_LOADS[view];
+  if (prev) prev.ctrl.abort();
+  const ctrl = new AbortController();
+  const g = { site: siteId(), ctrl, signal: ctrl.signal, seq: ++loadCounter };
+  g.stale = () => VIEW_LOADS[view] !== g || g.site !== siteId() || ctrl.signal.aborted;
+  g.withSite = path => g.site ? path + (path.includes("?") ? "&" : "?") + "site_id=" + encodeURIComponent(g.site) : path;
+  VIEW_LOADS[view] = g;
+  return g;
+}
+async function initSiteFilter(baseFn, onChange) {
+  const sel = document.getElementById("site-filter");
+  let keep = "", sites = [];
+  try { keep = localStorage.getItem(SITE_KEY) || ""; } catch (_) { keep = ""; }
+  try {
+    const resp = await fetch(`${baseFn()}/sites`);
+    if (resp.ok) {
+      const data = await resp.json();
+      const rows = (Array.isArray(data) ? data : []).filter(x => x && x.id != null && x.name);
+      // owner 2026-10-13: always ONE site - no "All sites" option; pages show
+      // only the selected site's data (the console's Sites overview is the
+      // cross-site view)
+      sel.replaceChildren(...(rows.length ? rows.map(x => el("option", { value: String(x.id), text: String(x.name) }))
+                                          : [el("option", { value: "", text: "— no sites —" })]));
+      sites = rows;
+    }
+  } catch (_) { /* no site list: requests go without a site */ }
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+  else if (sites.length) {
+    const d = sites.find(x => x.is_default) || sites[0];
+    sel.value = String(d.id);
+    try { localStorage.setItem(SITE_KEY, sel.value); } catch (_) { /* storage blocked */ }
+  }
+  if (!sel.dataset.bound) {
+    sel.dataset.bound = "1";
+    sel.addEventListener("change", () => {
+      try { if (sel.value) localStorage.setItem(SITE_KEY, sel.value); else localStorage.removeItem(SITE_KEY); } catch (_) { /* storage blocked */ }
+      onChange();
+    });
+  }
+}
+
+async function apiError(resp) {
+  let detail = "";
+  try {
+    const body = await resp.json();
+    detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail ?? body);
+  } catch (_) { /* not JSON */ }
+  return new Error(`HTTP ${resp.status}${detail ? " — " + detail : ""}`);
+}
+
+function setStatus(msg, err) {
+  document.getElementById("status").textContent = msg || "";
+  document.getElementById("error-msg").textContent = err || "";
+}
+
+// Known-safe class tokens only.
+function safeSeverity(s) { s = String(s || "").toLowerCase(); return SEVERITIES.includes(s) ? s : "info"; }
+function safeStatus(s)   { s = String(s || "").toLowerCase(); return STATUSES.includes(s) ? s : "unknown"; }
+
+// ---------------------------------------------------------------- loading
+async function loadCheckNames() {
+  const sel = document.getElementById("filter-check");
+  const current = sel.value;
+  const names = new Set(Object.keys(summary?.by_check_name || {}));
+  try {
+    const resp = await fetch(`${apiBase()}/findings/category-reference`);
+    if (resp.ok) for (const r of await resp.json()) if (r.check_name) names.add(r.check_name);
+  } catch (_) { /* optional */ }
+  sel.replaceChildren(el("option", { value: "", text: "All" }),
+    ...[...names].sort().map(n => el("option", { value: n, text: n })));
+  sel.value = names.has(current) ? current : "";
+}
+
+async function loadSummary() {
+  const g = beginLoad("summary");
+  try {
+    const resp = await fetch(g.withSite(`${apiBase()}/findings/summary`), { signal: g.signal });
+    if (!resp.ok) throw await apiError(resp);
+    const data = await resp.json();
+    if (g.stale()) return;               // superseded / site changed meanwhile (B-23)
+    summary = data;
+    renderSummary();
+  } catch (e) {
+    if (g.stale()) return;
+    throw e;
+  }
+}
+
+async function loadFindings() {
+  const g = beginLoad("findings");
+  const seq = g.seq;
+  setStatus("Loading…");
+  const size = pageSize();
+  const params = new URLSearchParams({ limit: String(size), offset: String(page * size) });
+  for (const [id, key] of [["filter-status", "status"], ["filter-severity", "severity"],
+                           ["filter-category", "category"], ["filter-check", "check_name"]]) {
+    const v = document.getElementById(id).value;
+    if (v) params.set(key, v);
+  }
+  const q = document.getElementById("filter-search").value.trim();
+  if (q) params.set("q", q);
+  try {
+    if (g.site) params.set("site_id", g.site);   // captured once for this load
+    const [resp] = await Promise.all([fetch(`${apiBase()}/findings?${params}`, { signal: g.signal }), loadSummary()]);
+    if (!resp.ok) throw await apiError(resp);
+    const data = await resp.json();
+    if (g.stale()) return;               // a newer request superseded this one
+    const hdr = resp.headers.get("X-Total-Count");
+    total = hdr !== null && hdr !== "" ? parseInt(hdr, 10) : data.length;
+    if (data.length === 0 && total > 0 && page > 0) {   // page vanished (e.g. after status changes)
+      page = Math.max(0, Math.ceil(total / size) - 1);
+      return loadFindings();
+    }
+    allFindings = data;
+    setStatus(`${total} matching finding${total === 1 ? "" : "s"}`);
+    document.body.dataset.loaded = String(seq);
+    applyFilters(false);
+    renderPanel();
+  } catch (e) {
+    if (g.stale()) return;
+    setStatus("", `Error: ${e.message}`);
+    document.getElementById("list-wrap").replaceChildren(
+      el("div", { id: "empty-state", text: "Could not load findings. Check the API URL and that the server is running." }));
+  }
+}
+
+async function reloadAll() {
+  try { await loadSummary(); } catch (e) { setStatus("", `Error: ${e.message}`); }
+  await loadCheckNames();
+  await loadFindings();
+}
+
+// ---------------------------------------------------------------- summary
+function renderSummary() {
+  const bySev = summary?.by_severity || {};
+  const sevFilter = document.getElementById("filter-severity").value;
+  const wrap = document.getElementById("summary");
+  const cards = [
+    el("button", { type: "button", class: "summary-card", "data-testid": "count-open",
+                   title: "All open findings (from /findings/summary)",
+                   onclick: () => setFilters({ status: "open", severity: "" }) },
+      el("div", { class: "summary-count", text: summary?.total_open ?? 0 }),
+      el("div", { class: "summary-label", text: "Open total" })),
+  ];
+  for (const sev of SEVERITIES) {
+    cards.push(el("button", {
+      type: "button", class: `summary-card sev-${sev}` + (sevFilter === sev ? " active" : ""),
+      "data-testid": `count-sev-${sev}`,
+      onclick: () => setFilters({ status: "open", severity: sevFilter === sev ? "" : sev }),
+    },
+      el("div", { class: "summary-count", text: bySev[sev] ?? 0 }),
+      el("div", { class: "summary-label", text: `Open ${sev}` })));
+  }
+  wrap.replaceChildren(...cards);
+
+  const bySt = summary?.by_status || {};
+  const statusFilter = document.getElementById("filter-status").value;
+  const stWrap = document.getElementById("summary-status");
+  stWrap.replaceChildren(el("span", { text: "All findings by status:" }),
+    ...STATUSES.map(st => el("button", {
+      type: "button", class: `status-chip status-badge status-${st}` + (statusFilter === st ? " active" : ""),
+      "data-testid": `count-status-${st}`, onclick: () => setFilters({ status: statusFilter === st ? "" : st }),
+    }, `${st} `, el("b", { text: bySt[st] ?? 0 }))));
+
+  const cats = document.getElementById("summary-cats");
+  const byCat = summary?.by_category || {};
+  cats.replaceChildren(
+    el("span", { text: "Open by category:" }),
+    ...Object.keys(byCat).sort().map(c =>
+      el("span", { "data-testid": "count-cat", "data-key": c }, `${c} `, el("b", { text: byCat[c] }))));
+}
+
+function setFilters(f) {
+  if ("status" in f) document.getElementById("filter-status").value = f.status;
+  if ("severity" in f) document.getElementById("filter-severity").value = f.severity;
+  renderSummary();
+  page = 0;
+  loadFindings();
+}
+
+// ---------------------------------------------------------------- list
+function applyFilters() {
+  // Search is applied by the server (q=); every row of the page matches.
+  filteredFindings = allFindings;
+  renderList();
+}
+
+let searchTimer = null;
+function searchChanged() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { page = 0; loadFindings(); }, 300);
+}
+
+function pageSize() { return parseInt(document.getElementById("page-size").value, 10) || 50; }
+
+function renderList() {
+  const groupBy = document.getElementById("group-by").value;
+  const search = document.getElementById("filter-search").value.trim();
+  const wrap = document.getElementById("list-wrap");
+  const size = pageSize();
+  const pages = Math.max(1, Math.ceil(total / size));
+
+  document.getElementById("page-prev").disabled = page === 0;
+  document.getElementById("page-next").disabled = page >= pages - 1;
+  const from = allFindings.length ? page * size + 1 : 0;
+  const to = page * size + allFindings.length;
+  document.getElementById("page-info").textContent = `${from}–${to} of ${total} · page ${page + 1}/${pages}`;
+
+  const note = document.getElementById("list-note");
+  const scoped = [];
+  if (groupBy !== "none") scoped.push(`This page only (${from}–${to} of ${total}): grouped`);
+  if (search) scoped.push(`${total} finding${total === 1 ? "" : "s"} match "${search}" (all pages)`);
+  note.hidden = !scoped.length;
+  note.textContent = scoped.join(". ");
+
+  if (filteredFindings.length === 0) {
+    wrap.replaceChildren(el("div", { id: "empty-state", text: search
+      ? `No findings match "${search}" with the current filters.` : "No findings match the current filters." }));
+    return;
+  }
+
+  let ordered = filteredFindings;
+  if (groupBy !== "none") {
+    ordered = filteredFindings.slice().sort((a, b) =>
+      groupKey(a, groupBy).localeCompare(groupKey(b, groupBy)));
+  }
+  const groupTotals = {};
+  if (groupBy !== "none") for (const f of ordered) {
+    const k = groupKey(f, groupBy); groupTotals[k] = (groupTotals[k] || 0) + 1;
+  }
+
+  const nodes = [];
+  let lastKey = null;
+  for (const f of ordered) {
+    if (groupBy !== "none") {
+      const key = groupKey(f, groupBy);
+      if (key !== lastKey) {
+        nodes.push(el("div", { class: "group-header", "data-testid": "group-header" },
+          el("span", { class: "group-key", text: key, title: key }),
+          el("span", { class: "group-count", title: "on this page", text: groupTotals[key] })));
+        lastKey = key;
+      }
+    }
+    nodes.push(makeFindingRow(f));
+  }
+  wrap.replaceChildren(...nodes);
+}
+
+function groupKey(f, groupBy) {
+  const val = f[groupBy];
+  return val === null || val === undefined || val === "" ? "(none)" : String(val);
+}
+
+function makeFindingRow(f) {
+  const sev = safeSeverity(f.severity), st = safeStatus(f.status);
+  return el("div", {
+    class: `finding-row st-${st}` + (selectedId === f.id ? " selected" : ""),
+    dataset: { id: String(f.id) }, "data-testid": "finding-row", tabindex: "0",
+    role: "button", "aria-pressed": selectedId === f.id ? "true" : "false",
+    onclick: () => selectFinding(f.id),
+    // B-23: Enter and Space select; focus follows the re-rendered row.
+    onkeydown: (e) => {
+      if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      selectFinding(f.id);
+      const row = document.querySelector(`#list-wrap .finding-row[data-id="${CSS.escape(String(f.id))}"]`);
+      if (row) row.focus({ preventScroll: true });
+    },
+  },
+    el("span", { class: `badge badge-${sev}`, text: f.severity || "?" }),
+    el("span", { class: `status-badge status-${st}`, text: f.status || "?" }),
+    f.isa62443_sr ? el("span", { class: "sr-badge", text: f.isa62443_sr }) : null,
+    f.checklist_id ? el("span", { class: "sr-badge", text: `#${f.checklist_id}` }) : null,
+    f.check_name ? el("span", { class: "sr-badge check-badge", text: f.check_name }) : null,
+    el("span", { class: "finding-title", text: f.title || "", title: f.title || "" }),
+    el("span", { class: "finding-device", text: f.device_name || "", title: f.device_name || "" }),
+    Number(f.occurrence_count) > 1 ? el("span", { class: "occ-badge", "data-testid": "occurrences", title: `seen ${Number(f.occurrence_count)} times`, text: `×${Number(f.occurrence_count)}` }) : null,
+    el("span", { class: "finding-time", "data-last-seen": f.last_seen || "",
+      title: `created ${fmtDate(f.created_at)}` + (f.last_seen ? ` · last seen ${fmtDate(f.last_seen)}` : ""),
+      text: relativeTime(f.last_seen || f.created_at) }));
+}
+
+function selectFinding(id) {
+  selectedId = id;
+  selectedFinding = allFindings.find(x => x.id === id) || null;
+  renderList();
+  renderPanel();
+}
+
+// ---------------------------------------------------------------- detail
+function renderPanel() {
+  const panel = document.getElementById("side-panel");
+  const fresh = allFindings.find(x => x.id === selectedId);
+  if (fresh) selectedFinding = fresh;
+  const f = selectedId !== null && selectedFinding && selectedFinding.id === selectedId ? selectedFinding : null;
+  if (!f) {
+    panel.replaceChildren(el("div", { class: "panel-empty", text: "Select a finding to view details and edit its status." }));
+    return;
+  }
+  const sev = safeSeverity(f.severity), st = safeStatus(f.status);
+
+  let evidence = null;
+  if (f.detail && typeof f.detail === "object" && Object.keys(f.detail).length) {
+    const lines = Object.entries(f.detail)
+      .map(([k, v]) => `${k}: ${v !== null && typeof v === "object" ? JSON.stringify(v) : v}`).join("\n");
+    evidence = [el("div", { class: "detail-label", text: "Evidence" }), el("div", { class: "detail-json", text: lines })];
+  } else if (f.detail) {
+    evidence = [el("div", { class: "detail-label", text: "Evidence" }), el("div", { class: "detail-json", text: String(f.detail) })];
+  }
+
+  const statusSel = el("select", { id: "edit-status", class: "edit-field" },
+    ...STATUSES.map(s => el("option", { value: s, text: s[0].toUpperCase() + s.slice(1), selected: f.status === s })));
+  const ackBy = el("input", { type: "text", id: "edit-ack-by", class: "edit-field", placeholder: "your name" });
+  ackBy.value = f.acknowledged_by || "";
+  const notes = el("textarea", { id: "edit-notes", placeholder: "Add investigation notes, justification, or remediation plan..." });
+  notes.value = f.notes || "";
+  const saveMsg = el("div", { id: "save-status", style: "margin-top:8px;font-size:11px" });
+
+  const history = [];
+  if (f.acknowledged_at) history.push(`Acknowledged ${fmtDate(f.acknowledged_at)}${f.acknowledged_by ? " by " + f.acknowledged_by : ""}`);
+  if (f.closed_at) history.push(`Closed ${fmtDate(f.closed_at)}`);
+
+  panel.replaceChildren(
+    el("div", { class: "panel-section" },
+      el("div", { class: "panel-title", text: f.title || "" }),
+      el("div", { class: "panel-badges" },
+        el("span", { class: `badge badge-${sev}`, text: f.severity || "?" }),
+        el("span", { class: `status-badge status-${st}`, "data-testid": "panel-status", text: f.status || "?" }),
+        f.isa62443_sr ? el("span", { class: "sr-badge", text: f.isa62443_sr }) : null,
+        f.checklist_id ? el("span", { class: "sr-badge", text: `checklist ${f.checklist_id}` }) : null,
+        f.check_name ? el("span", { class: "sr-badge check-badge", text: f.check_name }) : null),
+      el("div", { class: "detail-label", text: "Category" }),
+      el("div", { class: "detail-value", text: f.category || "" }),
+      el("div", { class: "detail-label", text: "Device" }),
+      el("div", { class: "detail-value", text: f.device_name || "—" }),
+      el("div", { class: "detail-label", text: "Created" }),
+      el("div", { class: "detail-value", text: fmtDate(f.created_at) }),
+      el("div", { class: "detail-label", text: "Last seen" }),
+      el("div", { class: "detail-value", "data-testid": "panel-last-seen" }, f.last_seen
+        ? el("time", { datetime: String(f.last_seen), title: fmtDate(f.last_seen), text: relativeTime(f.last_seen) }) : "—"),
+      el("div", { class: "detail-label", text: "Occurrences" }),
+      el("div", { class: "detail-value", "data-testid": "panel-occurrences", text: f.occurrence_count != null ? String(Number(f.occurrence_count) || 0) : "—" }),
+      history.length ? [el("div", { class: "detail-label", text: "History" }),
+                        ...history.map(h => el("div", { class: "detail-value", text: h }))] : null,
+      evidence),
+    el("div", { class: "panel-section" },
+      el("div", { class: "detail-label", style: "margin-top:0", text: "Update status" }),
+      el("label", { for: "edit-status", text: "Status" }), statusSel,
+      el("label", { for: "edit-ack-by", text: "Acknowledged by" }), ackBy,
+      el("label", { for: "edit-notes", text: "Notes" }), notes,
+      el("button", { type: "button", id: "save-btn", class: "primary", style: "margin-top:12px;width:100%",
+                     text: "Save", onclick: () => saveFinding(f.id) }),
+      saveMsg));
+}
+
+async function saveFinding(id) {
+  const status = document.getElementById("edit-status").value;
+  const notes = document.getElementById("edit-notes").value;
+  const ackBy = document.getElementById("edit-ack-by").value.trim();
+  const saveStatusEl = document.getElementById("save-status");
+
+  const params = new URLSearchParams({ status });
+  if (notes) params.set("notes", notes);
+  if (ackBy) params.set("acknowledged_by", ackBy);
+
+  saveStatusEl.textContent = "Saving...";
+  saveStatusEl.style.color = "var(--muted)";
+  try {
+    const resp = await fetch(`${apiBase()}/findings/${encodeURIComponent(id)}/status?${params}`, { method: "PATCH" });
+    if (!resp.ok) throw await apiError(resp);
+    const updated = await resp.json();
+    const f = selectedFinding && selectedFinding.id === id ? selectedFinding : allFindings.find(x => x.id === id);
+    if (f) {
+      const now = updated.updated_at || new Date().toISOString();
+      f.status = updated.status;
+      if (notes) f.notes = notes;
+      if (updated.status === "acknowledged" && ackBy) { f.acknowledged_by = ackBy; f.acknowledged_at = now; }
+      if (updated.status === "closed") f.closed_at = now;
+    }
+    await loadFindings();          // also refreshes /findings/summary
+    const msg = document.getElementById("save-status");
+    msg.textContent = "Saved.";
+    msg.style.color = "var(--success)";
+  } catch (e) {
+    saveStatusEl.textContent = `Failed: ${e.message}`;
+    saveStatusEl.style.color = "var(--error)";
+  }
+}
+
+// ---------------------------------------------------------------- reviews
+async function runReviews() {
+  const btn = document.getElementById("run-reviews-btn"), out = document.getElementById("run-result");
+  btn.disabled = true; btn.textContent = "Running reviews…";
+  out.hidden = false;
+  out.replaceChildren(el("span", { style: "color:var(--muted)", text: "Running all periodic reviews…" }));
+  try {
+    // Phase 2: reviews run per site - the selected one, or every site in turn.
+    const resp = await fetch(withSite(`${apiBase()}/reviews/run`), { method: "POST" });
+    if (!resp.ok) throw await apiError(resp);
+    out.replaceChildren(...renderRun(await resp.json()),
+      el("button", { type: "button", style: "margin-top:8px", text: "Dismiss", onclick: () => { out.hidden = true; out.replaceChildren(); } }));
+    page = 0;
+    await loadFindings();
+  } catch (e) {
+    out.replaceChildren(el("span", { class: "run-failed", text: `Review run failed: ${e.message}` }));
+  } finally { btn.disabled = false; btn.textContent = "Run reviews now"; }
+}
+
+/** /reviews/run summary: totals, failed reviews, escalations, auto-resolved per review. */
+function renderRun(r) {
+  r = r || {};
+  const by = r.by_review && typeof r.by_review === "object" ? r.by_review : {};
+  const auto = r.auto_resolved && typeof r.auto_resolved === "object" ? r.auto_resolved : {};
+  const failed = Array.isArray(r.failed_reviews) ? r.failed_reviews : [];
+  const autoTotal = Object.values(auto).reduce((a, n) => a + (Number(n) || 0), 0);
+  const names = [...new Set([...Object.keys(by), ...Object.keys(auto)])]
+    .filter(n => Number(by[n]) || Number(auto[n]) || failed.includes(n)).sort();
+  const stat = (k, n, label, bad) => el("span", { "data-stat": k, class: bad ? "bad" : null }, el("b", { text: n }), " " + label);
+  return [
+    el("div", { class: "run-stats", "data-testid": "review-run" },
+      stat("total_findings", Number(r.total_findings) || 0, "findings produced"),
+      stat("reviews", Object.keys(by).length, "reviews ran"),
+      stat("failed_reviews", failed.length, "failed", failed.length > 0),
+      stat("escalations", Number(r.escalations) || 0, "escalations"),
+      stat("auto_resolved", autoTotal, "auto-resolved")),
+    failed.length ? el("div", { class: "run-failed", text: `Failed (rolled back, run was partial): ${failed.join(", ")}` }) : null,
+    names.length ? el("div", { class: "run-wrap" }, el("table", { class: "run-table" },
+      el("thead", {}, el("tr", {}, ["Review", "Findings", "Auto-resolved", ""].map(h => el("th", { text: h })))),
+      el("tbody", {}, names.map(n => el("tr", { "data-review": n },
+        el("td", { text: n }), el("td", { class: "num", text: Number(by[n]) || 0 }),
+        el("td", { class: "num", text: Number(auto[n]) || 0 }),
+        el("td", { class: "run-failed", text: failed.includes(n) ? "failed" : "" })))))) : null,
+  ].filter(Boolean);
+}
+
+// ---------------------------------------------------------------- util
+function fmtDate(iso) {
+  if (!iso) return "—";
+  const d = parseTs(iso);
+  return d ? d.toLocaleString() : String(iso);
+}
+/** API timestamps without an offset are UTC. */
+function parseTs(iso) {
+  if (!iso) return null;
+  let s = String(iso);
+  if (/^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?$/.test(s)) s += "Z";
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+function relativeTime(iso) {
+  const d0 = parseTs(iso);
+  const t = d0 ? d0.getTime() : NaN;
+  if (isNaN(t)) return "";
+  const diff = (Date.now() - t) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+// ---------------------------------------------------------------- wiring
+document.getElementById("reload-btn").addEventListener("click", reloadAll);
+document.getElementById("run-reviews-btn").addEventListener("click", runReviews);
+for (const id of ["filter-status", "filter-severity", "filter-category", "filter-check"]) {
+  document.getElementById(id).addEventListener("change", () => { page = 0; renderSummary(); loadFindings(); });
+}
+document.getElementById("group-by").addEventListener("change", renderList);
+document.getElementById("filter-search").addEventListener("input", searchChanged);
+document.getElementById("page-size").addEventListener("change", () => { page = 0; loadFindings(); });
+document.getElementById("page-prev").addEventListener("click", () => { if (page > 0) { page--; loadFindings(); } });
+document.getElementById("page-next").addEventListener("click", () => { page++; loadFindings(); });
+
+initSiteFilter(apiBase, () => { page = 0; reloadAll(); }).finally(reloadAll);
+</script>
+</body>
+</html>

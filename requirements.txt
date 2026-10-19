@@ -1,0 +1,26 @@
+# Runtime dependencies - the DIRECT dependencies, pinned to the exact versions
+# the test suite (2423 tests), the tabletops and the real-config run were
+# verified with (Python 3.11).  The full transitive set, also pinned, is
+# requirements-lock.txt: the Docker image installs from that file only.
+#
+# To upgrade: change a pin here, install, run the full suite, then regenerate
+# the lock (docs/docker-install.md, "Updating dependencies").
+fastapi==0.141.1
+# Plain uvicorn (h11, asyncio): what the tests ran with.  uvicorn[standard]
+# (uvloop, httptools, websockets, watchfiles) was never part of the tested set.
+uvicorn==0.46.0
+sqlalchemy==2.1.1
+alembic==1.20.0
+scapy==2.7.0
+python-multipart==0.0.26
+pydantic==2.13.3
+apscheduler==3.11.3
+# PDF compliance report (generate_report.py: reportlab.lib.*, reportlab.platypus)
+reportlab==4.4.10
+# PostgreSQL driver (optional backend).  SQLAlchemy maps postgresql:// to
+# psycopg2; use an explicit postgresql+psycopg2:// URL.
+psycopg2-binary==2.9.13
+# Safe XML parsing for pfSense / PAN-OS configs (AU D11)
+defusedxml==0.7.1
+# Findings workbook export / import (app/findings_workbook.py): openpyxl
+openpyxl==3.1.5

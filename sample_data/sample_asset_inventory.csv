@@ -1,0 +1,6 @@
+ip,mac,hostname,device_type,purdue_level,zone,vlan
+10.0.1.10,00:11:22:33:44:55,plc-01,plc,1,ICS_CONTROL,10
+10.0.1.12,00:11:22:33:44:66,rtu-01,rtu,1,ICS_CONTROL,10
+10.0.2.10,aa:bb:cc:dd:ee:01,hmi-01,hmi,2,SUPERVISORY,20
+10.0.3.50,aa:bb:cc:dd:ee:02,eng-ws-01,engineering_workstation,3,ENGINEERING,30
+10.0.4.5,aa:bb:cc:dd:ee:03,admin-ws-01,business_workstation,4,CORPORATE,40

@@ -1,0 +1,23 @@
+hostname "ICS-SWITCH-02"
+
+vlan 1
+   name "DEFAULT_VLAN"
+   untagged 3-4
+   ip address dhcp-bootp
+exit
+vlan 10
+   name "ENGINEERING"
+   untagged 1-2,6
+   tagged 24
+exit
+vlan 20
+   name "ICS_CONTROL"
+   untagged 5
+   tagged 24
+exit
+interface 1
+   name "Uplink to Engineering Workstation"
+exit
+interface 5
+   name "Link to PLC-HMI-01"
+exit

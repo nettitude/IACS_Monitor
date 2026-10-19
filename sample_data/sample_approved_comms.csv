@@ -1,0 +1,7 @@
+src,dst,dst_port,protocol,service_name,conduit,owner
+10.0.2.10,10.0.1.10,502,tcp,Modbus/TCP,HMI-to-PLC,OT-Engineer
+10.0.2.10,10.0.1.12,20000,tcp,DNP3,HMI-to-RTU,OT-Engineer
+10.0.3.50,10.0.1.10,102,tcp,S7comm,ENG-to-PLC,OT-Engineer
+10.0.3.50,10.0.1.10,44818,tcp,EtherNet/IP,ENG-to-PLC,OT-Engineer
+10.0.1.10,123.0.0.0/8,123,udp,NTP,OT-to-IT-DMZ,IT-Admin
+10.0.4.100,10.0.2.10,3389,tcp,RDP-to-jump,RemoteAccess,IT-Admin

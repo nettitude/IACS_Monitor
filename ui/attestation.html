@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IACS_Monitor – Zone Documentation Attestation</title>
+<style>
+  :root {
+    --bg: #0f1720; --panel: #161f2c; --border: #2a3648; --text: #e6edf3;
+    --muted: #8b98a8; --accent: #4d9de0; --accent-hover: #3a86c9;
+    --success: #3fb950; --error: #f85149; --warning: #d29922;
+    --tag-bg: #1c2a3a; --tag-border: #2a4060;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    margin: 0; padding: 40px 20px; display: flex; justify-content: center;
+  }
+  .outer { width: 100%; max-width: 720px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin: 0 0 32px; }
+
+  /* ---- nav pills ---- */
+  nav { display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap; }
+  nav button {
+    background: var(--panel); border: 1px solid var(--border); color: var(--muted);
+    border-radius: 20px; padding: 6px 14px; font-size: 13px; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  nav button.active, nav button:hover { border-color: var(--accent); color: var(--text); }
+  nav button.active { background: var(--tag-bg); color: var(--accent); }
+
+  /* ---- card ---- */
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 28px; margin-bottom: 16px;
+  }
+  .card-header {
+    display: flex; align-items: flex-start; gap: 14px; margin-bottom: 18px;
+  }
+  .row-badge {
+    background: var(--tag-bg); border: 1px solid var(--tag-border);
+    border-radius: 6px; padding: 4px 10px; font-size: 13px; font-weight: 600;
+    color: var(--accent); white-space: nowrap; flex-shrink: 0; margin-top: 2px;
+  }
+  .row-title { font-size: 15px; font-weight: 600; line-height: 1.4; }
+  .row-sr { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* attestation status pill */
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    border-radius: 12px; padding: 3px 10px; font-size: 12px; font-weight: 500;
+    margin-left: auto; white-space: nowrap; flex-shrink: 0;
+  }
+  .status-pill.ok   { background: rgba(63,185,80,.12); color: var(--success); border: 1px solid rgba(63,185,80,.3); }
+  .status-pill.warn { background: rgba(210,153,34,.12); color: var(--warning); border: 1px solid rgba(210,153,34,.3); }
+  .status-pill.none { background: rgba(248,81,73,.10); color: var(--error);   border: 1px solid rgba(248,81,73,.3); }
+  .status-pill::before { content: "●"; font-size: 8px; }
+
+  /* form fields */
+  label { display: block; font-size: 12px; color: var(--muted); margin: 14px 0 5px; }
+  input[type="text"], input[type="date"], textarea, select {
+    width: 100%; background: #0d141d; color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 9px 11px;
+    font-size: 13px; font-family: inherit;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 72px; }
+
+  /* file drop zone */
+  .drop-zone {
+    border: 2px dashed var(--border); border-radius: 8px;
+    padding: 20px; text-align: center; cursor: pointer;
+    transition: border-color .15s, background .15s;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.dragging {
+    border-color: var(--accent); background: rgba(77,157,224,.06);
+  }
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .drop-zone .drop-label { font-size: 13px; color: var(--muted); pointer-events: none; }
+  .drop-zone .drop-label strong { color: var(--accent); }
+  .drop-zone .file-name { font-size: 13px; color: var(--text); margin-top: 4px; }
+
+  /* proof preview link */
+  .proof-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--accent); text-decoration: none;
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px;
+    margin-top: 6px;
+  }
+  .proof-link:hover { border-color: var(--accent); }
+
+  /* submit row */
+  .form-footer { display: flex; gap: 10px; margin-top: 20px; align-items: center; }
+  button.primary {
+    background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    padding: 10px 20px; font-size: 14px; font-weight: 500; cursor: pointer;
+    transition: background .15s;
+  }
+  button.primary:hover { background: var(--accent-hover); }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  .save-status { font-size: 12px; color: var(--muted); }
+  .save-status.ok   { color: var(--success); }
+  .save-status.err  { color: var(--error); }
+
+  /* history table */
+  .history-toggle {
+    font-size: 12px; color: var(--accent); cursor: pointer; background: none;
+    border: none; padding: 0; margin-top: 12px;
+  }
+  .history-toggle:hover { text-decoration: underline; }
+  .history-wrap { overflow-x: auto; max-width: 100%; }
+  .history-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+  .history-table th { color: var(--muted); font-weight: 500; text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); }
+  .history-table td { padding: 5px 8px; border-bottom: 1px solid #1a2330; vertical-align: top; word-break: break-word; }
+  .history-table tr:last-child td { border-bottom: none; }
+
+  /* global actions */
+  .global-bar {
+    display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap;
+  }
+  input.global-field {
+    background: #0d141d; color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px 11px;
+    font-size: 13px; font-family: inherit;
+  }
+  input.global-field:focus { outline: none; border-color: var(--accent); }
+
+  .proof-link { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #load-error { color: var(--error); font-size: 13px; margin-bottom: 16px; }
+  @media (max-width: 600px) {
+    body { padding: 20px 12px; }
+    .card { padding: 18px 14px; }
+    .card-header { flex-wrap: wrap; gap: 10px; }
+    .status-pill { margin-left: 0; }
+    .global-bar input.global-field { min-width: 0 !important; flex: 1 1 100% !important; }
+  }
+
+  /* section divider */
+  .section-label {
+    font-size: 11px; font-weight: 600; letter-spacing: .08em;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 12px;
+  }
+  /* B-23: visible keyboard focus on every interactive element */
+  button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+</style>
+</head>
+<body>
+<div class="outer">
+  <h1>Zone Documentation Attestation</h1>
+  <p class="subtitle">ISA/IEC 62443 Section 1 — Controls 1.1 – 1.6 &nbsp;·&nbsp; Attest that each zone-documentation control is satisfied and upload supporting evidence</p>
+
+  <div id="load-error" hidden></div>
+  <!-- shared fields applied to every submission -->
+  <div class="global-bar">
+    <input class="global-field" id="g-attester" type="text" placeholder="Your name / email" aria-label="Your name / email" style="flex:1; min-width:180px">
+    <input class="global-field" id="g-baseline" type="text" placeholder="Baseline name (e.g. 2026-Q3-audit)" aria-label="Baseline name" style="flex:1; min-width:180px">
+    <input class="global-field" id="g-date" type="date" aria-label="Attestation date" style="min-width:140px">
+    <select class="global-field" id="site-filter" aria-label="Site" title="Site: attestations of this site" data-testid="site-filter" style="min-width:160px"></select>
+  </div>
+
+  <!-- nav: jump to a specific row -->
+  <nav id="row-nav"></nav>
+
+  <div id="cards-container"></div>
+</div>
+
+<script>
+"use strict";
+// attested_by, notes and proof_filename are free text supplied by whoever
+// submitted an attestation. Nothing from the API is passed to innerHTML;
+// el() builds nodes with textContent / setAttribute only.
+
+function defaultApiBase() {
+  return /^https?:$/.test(location.protocol) ? location.origin : "http://localhost:8000";
+}
+const API_BASE = defaultApiBase();
+
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "text") e.textContent = String(v);
+    else if (k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : String(v));
+  }
+  for (const c of children.flat()) {
+    if (c === null || c === undefined || c === false) continue;
+    e.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return e;
+}
+
+// ---- sites (multi-site phase 1) ----
+// The selection is shared with the console (/ui) through localStorage
+// ("iasc_site"); always one site (owner 2026-10-13).  List fetches add ?site_id=<id>.
+const SITE_KEY = "iasc_site";
+function siteId() { const s = document.getElementById("site-filter"); return s ? s.value : ""; }
+function withSite(path) {
+  const id = siteId();
+  return id ? path + (path.includes("?") ? "&" : "?") + "site_id=" + encodeURIComponent(id) : path;
+}
+// B-23: per-view load guard (same pattern as the console /ui).  beginLoad()
+// captures the site once, aborts the view's previous in-flight request and
+// returns g: g.withSite(path) adds that captured site, g.signal aborts, and
+// g.stale() is true once a newer load started or the site selector changed.
+const VIEW_LOADS = {};
+function beginLoad(view) {
+  const prev = VIEW_LOADS[view];
+  if (prev) prev.ctrl.abort();
+  const ctrl = new AbortController();
+  const g = { site: siteId(), ctrl, signal: ctrl.signal };
+  g.stale = () => VIEW_LOADS[view] !== g || g.site !== siteId() || ctrl.signal.aborted;
+  g.withSite = path => g.site ? path + (path.includes("?") ? "&" : "?") + "site_id=" + encodeURIComponent(g.site) : path;
+  VIEW_LOADS[view] = g;
+  return g;
+}
+async function initSiteFilter(baseFn, onChange) {
+  const sel = document.getElementById("site-filter");
+  let keep = "", sites = [];
+  try { keep = localStorage.getItem(SITE_KEY) || ""; } catch (_) { keep = ""; }
+  try {
+    const resp = await fetch(`${baseFn()}/sites`);
+    if (resp.ok) {
+      const data = await resp.json();
+      const rows = (Array.isArray(data) ? data : []).filter(x => x && x.id != null && x.name);
+      // owner 2026-10-13: always ONE site - no "All sites" option; pages show
+      // only the selected site's data (the console's Sites overview is the
+      // cross-site view)
+      sel.replaceChildren(...(rows.length ? rows.map(x => el("option", { value: String(x.id), text: String(x.name) }))
+                                          : [el("option", { value: "", text: "— no sites —" })]));
+      sites = rows;
+    }
+  } catch (_) { /* no site list: requests go without a site */ }
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+  else if (sites.length) {
+    const d = sites.find(x => x.is_default) || sites[0];
+    sel.value = String(d.id);
+    try { localStorage.setItem(SITE_KEY, sel.value); } catch (_) { /* storage blocked */ }
+  }
+  if (!sel.dataset.bound) {
+    sel.dataset.bound = "1";
+    sel.addEventListener("change", () => {
+      try { if (sel.value) localStorage.setItem(SITE_KEY, sel.value); else localStorage.removeItem(SITE_KEY); } catch (_) { /* storage blocked */ }
+      onChange();
+    });
+  }
+}
+
+function proofUrl(id) { return `${API_BASE}/attestation/${encodeURIComponent(id)}/proof`; }
+
+const ROWS = [
+  { id: "1.1", title: "OT zones formally defined and documented",            sr: "SR 5.1" },
+  { id: "1.2", title: "Zones defined by risk / consequence",                 sr: "SR 5.1" },
+  { id: "1.3", title: "Zone boundaries enforced by controls (FW / VLAN)",   sr: "SR 5.1 RE1, SR 5.2" },
+  { id: "1.4", title: "Communication conduits between zones documented",     sr: "SR 5.2, ZCR 3" },
+  { id: "1.5", title: "Security requirements defined per zone",              sr: "SR 5.1, SR 1.1" },
+  { id: "1.6", title: "Zone documentation reviewed and approved",            sr: "2-1 SPE 2" },
+];
+
+// State: attestation records loaded from API per checklist row
+const state = {};
+const refs = {};    // per-row element references
+
+// ---- render nav ----
+const nav = document.getElementById("row-nav");
+ROWS.forEach(r => {
+  nav.appendChild(el("button", { type: "button", "data-id": r.id, text: r.id,
+    onclick: () => refs[r.id].card.scrollIntoView({ behavior: "smooth", block: "start" }) }));
+});
+
+// ---- render cards (static content only; data is filled in by refreshCard) ----
+const container = document.getElementById("cards-container");
+
+ROWS.forEach(r => {
+  const safeId = r.id.replace(".", "_");
+  const pill = el("span", { class: "status-pill none", id: `pill-${safeId}`, text: "No attestation" });
+  const notes = el("textarea", { id: `notes-${safeId}`, rows: "3",
+    placeholder: "e.g. Zone map v2.3 approved in Architecture Review Board meeting 2026-09-10, stored in SharePoint /OT-Docs/ZoneMap" });
+  const fileInput = el("input", { type: "file", id: `file-${safeId}`, accept: ".pdf,.png,.jpg,.jpeg,.docx,.xlsx,.pptx,.txt,.csv" });
+  const dropLabel = el("div", { class: "drop-label" }, el("strong", { text: "Choose file" }), " or drag and drop");
+  const fileName = el("div", { class: "file-name" });
+  const dz = el("div", { class: "drop-zone" }, fileInput, dropLabel, fileName);
+  const existingProof = el("div", { "data-testid": "existing-proof" });
+  const saveStatus = el("span", { class: "save-status" });
+  const saveBtn = el("button", { type: "button", class: "primary", text: "Save attestation",
+                                 onclick: () => submitAttestation(r.id) });
+  const histToggle = el("button", { type: "button", class: "history-toggle", style: "display:none",
+                                    text: "▸ Show history", onclick: () => toggleHistory(r.id) });
+  const history = el("div", { class: "history-wrap", style: "display:none" });
+
+  const card = el("div", { class: "card", id: `card-${safeId}` },
+    el("div", { class: "card-header" },
+      el("div", {}, el("div", { class: "row-badge", text: r.id })),
+      el("div", { style: "flex:1;min-width:0" },
+        el("div", { class: "row-title", text: r.title }),
+        el("div", { class: "row-sr", text: r.sr })),
+      pill),
+    el("form", { onsubmit: e => e.preventDefault() },
+      el("label", { for: `notes-${safeId}` }, "Notes ",
+        el("span", { style: "font-weight:400", text: "(document location, review context, version …)" })),
+      notes,
+      el("label", { for: `file-${safeId}` }, "Proof document ",
+        el("span", { style: "font-weight:400", text: "(optional — PDF, PNG, JPG, DOCX, XLSX, max 20 MB)" })),
+      dz,
+      existingProof,
+      el("div", { class: "form-footer" }, saveBtn, saveStatus)),
+    histToggle,
+    history);
+  container.appendChild(card);
+  refs[r.id] = { card, pill, notes, fileInput, dropLabel, fileName, existingProof, saveStatus, saveBtn, histToggle, history };
+
+  fileInput.addEventListener("change", () => handleFileSelect(r.id));
+  dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("dragging"); });
+  dz.addEventListener("dragleave", () => dz.classList.remove("dragging"));
+  dz.addEventListener("drop", e => {
+    e.preventDefault(); dz.classList.remove("dragging");
+    fileInput.files = e.dataTransfer.files;
+    handleFileSelect(r.id);
+  });
+});
+
+function handleFileSelect(rowId) {
+  const { fileInput, fileName, dropLabel } = refs[rowId];
+  const f = fileInput.files && fileInput.files[0];
+  fileName.textContent = f ? `${f.name} (${(f.size / 1024).toFixed(0)} KB)` : "";
+  dropLabel.style.display = f ? "none" : "";
+}
+
+// ---- load existing attestations ----
+async function loadAttestations() {
+  const errEl = document.getElementById("load-error");
+  const g = beginLoad("attestation");
+  try {
+    const resp = await fetch(g.withSite(`${API_BASE}/attestation`), { signal: g.signal });
+    if (!resp.ok) {
+      let detail = "";
+      try { detail = (await resp.json()).detail || ""; } catch (_) {}
+      throw new Error(`HTTP ${resp.status}${detail ? " — " + detail : ""}`);
+    }
+    const data = await resp.json();
+    if (g.stale()) return;              // superseded / site changed meanwhile
+    for (const k of Object.keys(state)) delete state[k];
+    data.forEach(att => {
+      const key = String(att.checklist_id);
+      (state[key] = state[key] || []).push(att);
+    });
+    errEl.hidden = true;
+    ROWS.forEach(r => refreshCard(r.id));
+  } catch (e) {
+    if (g.stale()) return;
+    errEl.hidden = false;
+    errEl.textContent = `Could not load attestations: ${e.message}`;
+  }
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? String(iso || "—")
+    : d.toLocaleDateString("en-GB", { year: "numeric", month: "short", day: "numeric" });
+}
+
+// ---- refresh pill + proof + history for a row ----
+function refreshCard(rowId) {
+  const ref = refs[rowId];
+  const records = (state[rowId] || []).slice().sort((a, b) => new Date(b.attested_at) - new Date(a.attested_at));
+  // is_current is per (checklist, baseline); show the newest current one.
+  const current = records.find(r => r.is_current);
+
+  if (current) {
+    const days = Math.max(0, Math.floor((Date.now() - new Date(current.attested_at)) / 86400000));
+    ref.pill.className = "status-pill " + (days < 365 ? "ok" : "warn");
+    ref.pill.textContent = days < 365 ? `Attested ${days}d ago` : `Stale — ${days}d ago`;
+    ref.pill.title = `by ${current.attested_by || "—"}`;
+    if (!ref.notes.value) ref.notes.value = current.notes || "";
+    ref.existingProof.replaceChildren(current.has_proof || current.proof_filename
+      ? el("a", { class: "proof-link", href: proofUrl(current.id), target: "_blank", rel: "noopener",
+                  title: current.proof_filename || "proof", text: `📎 ${current.proof_filename || "proof"}` })
+      : "");
+  } else {
+    ref.pill.className = "status-pill none";
+    ref.pill.textContent = "No attestation";
+    ref.existingProof.replaceChildren();
+  }
+
+  const navBtn = nav.querySelector(`button[data-id="${rowId}"]`);
+  if (navBtn) navBtn.className = current ? "active" : "";
+
+  if (records.length > 1) {
+    ref.histToggle.style.display = "";
+    renderHistory(rowId, records);
+  }
+}
+
+function renderHistory(rowId, records) {
+  const rows = records.map(r => {
+    const notes = r.notes ? r.notes.slice(0, 80) + (r.notes.length > 80 ? "…" : "") : "—";
+    return el("tr", {},
+      el("td", { text: fmtDate(r.attested_at) }),
+      el("td", { text: r.attested_by || "—" }),
+      el("td", { text: notes, title: r.notes || "" }),
+      el("td", {}, r.has_proof || r.proof_filename
+        ? el("a", { class: "proof-link", href: proofUrl(r.id), target: "_blank", rel: "noopener",
+                    title: r.proof_filename || "proof", text: "📎" })
+        : "—"),
+      el("td", {}, r.is_current
+        ? el("span", { style: "color:var(--success)", text: "current" })
+        : el("span", { style: "color:var(--muted)", text: "superseded" })));
+  });
+  refs[rowId].history.replaceChildren(el("table", { class: "history-table" },
+    el("thead", {}, el("tr", {}, ...["Date attested", "By", "Notes", "Proof", "Status"].map(h => el("th", { text: h })))),
+    el("tbody", {}, rows)));
+}
+
+function toggleHistory(rowId) {
+  const { history, histToggle } = refs[rowId];
+  const open = history.style.display !== "none";
+  history.style.display = open ? "none" : "";
+  histToggle.textContent = open ? "▸ Show history" : "▾ Hide history";
+}
+
+// ---- submit ----
+async function submitAttestation(rowId) {
+  const ref = refs[rowId];
+  const attester = document.getElementById("g-attester").value.trim();
+  const baseline = document.getElementById("g-baseline").value.trim();
+  const dateVal  = document.getElementById("g-date").value;
+  const notes    = ref.notes.value.trim();
+  const statusEl = ref.saveStatus;
+
+  const fail = msg => { statusEl.className = "save-status err"; statusEl.textContent = msg; };
+  if (!attester) return fail("Enter your name or email in the shared field at the top.");
+  if (!dateVal)  return fail("Select the attestation date in the shared field at the top.");
+  if (!siteId()) return fail("Choose the site this attestation belongs to (Site selector at the top).");
+
+  const fd = new FormData();
+  fd.append("site", siteId());
+  fd.append("checklist_id", rowId);
+  fd.append("attested_by", attester);
+  fd.append("attested_at", dateVal);
+  fd.append("notes", notes);
+  if (baseline) fd.append("baseline_name", baseline);
+  const file = ref.fileInput.files && ref.fileInput.files[0];
+  if (file) {
+    if (file.size > 20 * 1024 * 1024) return fail("File too large (max 20 MB).");
+    fd.append("proof", file);
+  }
+
+  statusEl.className = "save-status";
+  statusEl.textContent = "Saving…";
+  ref.saveBtn.disabled = true;
+  try {
+    const resp = await fetch(`${API_BASE}/attestation`, { method: "POST", body: fd });
+    let body = null;
+    try { body = await resp.json(); } catch (_) {}
+    if (!resp.ok) {
+      const d = body && body.detail;
+      return fail(`Error ${resp.status}: ${typeof d === "string" ? d : (d ? JSON.stringify(d) : resp.statusText)}`);
+    }
+    ref.fileInput.value = "";
+    handleFileSelect(rowId);
+    await loadAttestations();   // server decides which records are current
+    statusEl.className = "save-status ok";
+    statusEl.textContent = "Saved ✓";
+  } catch (e) {
+    fail("Network error — " + e.message);
+  } finally {
+    ref.saveBtn.disabled = false;
+  }
+}
+
+{ // local calendar date, not the UTC one
+  const d = new Date();
+  document.getElementById("g-date").value =
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+initSiteFilter(() => API_BASE, loadAttestations).finally(loadAttestations);
+</script>
+</body>
+</html>

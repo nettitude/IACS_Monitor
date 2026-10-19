@@ -1,0 +1,17 @@
+LLDP Remote Device Information Detail
+
+  Local Port   : 1
+
+  Chassis Id     : 00 00 00 12 34 ab
+  Port Id        : 1
+  System Name    : plc-hmi-01
+  System Description : Siemens S7-1200 PLC
+  Remote Management Address
+       Type    : ipv4
+       Address : 10.0.1.10
+
+  Local Port   : 6
+
+  Chassis Id     : aa bb cc dd ee 01
+  Port Id        : 1
+  System Name    :

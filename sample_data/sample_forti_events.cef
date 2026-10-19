@@ -1,0 +1,3 @@
+CEF:0|Fortinet|FortiGate|7.2.0|0000000020|event:system config-change|7|deviceExternalId=FGT-CORE rt=1705320000000 src=10.0.4.5 duser=admin act=change msg=vdom root changed policy 5 cs1=99 cs1Label=policyid
+CEF:0|Fortinet|FortiGate|7.2.0|0000000001|ips:anomaly tcp.syn.flood|8|deviceExternalId=FGT-CORE rt=1705320060000 src=10.0.99.1 dst=10.0.1.10 spt=0 dpt=502 act=blocked cs6=tcp.syn.flood cn1=critical
+CEF:0|Fortinet|FortiGate|7.2.0|0000000011|event:user authentication failure|6|deviceExternalId=FGT-CORE rt=1705320120000 src=10.0.5.99 duser=admin act=failed msg=SSH login failed

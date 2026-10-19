@@ -1,0 +1,6 @@
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Gi1/0/3, Gi1/0/4
+10   ENGINEERING                      active    Gi1/0/1, Gi1/0/5, Gi1/0/6,
+                                                 Gi1/0/7, Gi1/0/8
+20   ICS_CONTROL                      active    Gi1/0/2

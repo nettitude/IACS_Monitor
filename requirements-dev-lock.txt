@@ -1,0 +1,14 @@
+# Test dependencies at the versions the suite was verified with (used by the
+# Docker "dev" target on top of requirements-lock.txt).  Playwright (browser
+# smoke tests) is not included: those run from the host against the container.
+certifi==2026.4.22
+coverage==7.16.2
+httpcore==1.0.9
+httpx==0.28.1
+iniconfig==2.3.0
+packaging==26.1
+pluggy==1.6.0
+pygments==2.20.0
+pypdf==3.17.4
+pytest==9.1.1
+pytest-cov==7.1.0

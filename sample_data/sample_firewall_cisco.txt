@@ -1,0 +1,6 @@
+ip access-list extended OUTSIDE_IN
+ permit tcp any host 10.0.1.10 eq 502
+ permit tcp 10.0.1.0 0.0.0.255 host 10.0.1.10 eq 502
+ permit udp host 10.0.1.50 host 10.0.1.10 range 161 162
+ deny ip any any
+access-list 101 permit tcp any host 192.168.1.1 eq 22

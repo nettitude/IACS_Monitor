@@ -1,0 +1,18 @@
+<pfsense>
+  <filter>
+    <rule>
+      <type>pass</type>
+      <interface>lan</interface>
+      <descr>Allow engineering to PLC Modbus</descr>
+      <protocol>tcp</protocol>
+      <source><network>lan</network></source>
+      <destination><address>10.0.1.10</address><port>502</port></destination>
+    </rule>
+    <rule>
+      <type>block</type>
+      <interface>wan</interface>
+      <source><any/></source>
+      <destination><any/></destination>
+    </rule>
+  </filter>
+</pfsense>

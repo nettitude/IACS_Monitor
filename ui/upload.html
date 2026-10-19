@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IACS_Monitor - Data Ingest</title>
+<style>
+  :root {
+    --bg: #0f1720; --panel: #161f2c; --border: #2a3648; --text: #e6edf3;
+    --muted: #8b98a8; --accent: #4d9de0; --accent-hover: #3a86c9;
+    --success: #3fb950; --error: #f85149; --warning: #d29922;
+  }
+  * { box-sizing: border-box; }
+  html, body { overflow-x: hidden; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    margin: 0; padding: 40px 20px; display: flex; justify-content: center;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 32px; width: 100%; max-width: 600px; min-width: 0;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin: 0 0 28px; line-height: 1.5; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 18px 0 6px; }
+  select, input[type="text"], input[type="file"], input[type="number"] {
+    width: 100%; background: #0d141d; color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;
+    font-size: 14px; min-width: 0;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--accent); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; min-width: 0; }
+  .check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--text); margin: 14px 0 0; cursor: pointer; }
+  .check input { margin-top: 2px; }
+  button {
+    margin-top: 24px; width: 100%; background: var(--accent); color: white;
+    border: none; border-radius: 6px; padding: 12px; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: background 0.15s;
+  }
+  button:hover { background: var(--accent-hover); }
+  button:disabled { background: #2a3648; color: var(--muted); cursor: not-allowed; }
+  .hidden { display: none !important; }
+  #result {
+    margin-top: 20px; padding: 14px; border-radius: 6px; font-size: 13px;
+    word-break: break-word;
+  }
+  #result.success { background: rgba(63, 185, 80, 0.1); border: 1px solid var(--success); }
+  #result.error { background: rgba(248, 81, 73, 0.1); border: 1px solid var(--error); }
+  .result-head { font-weight: 600; margin-bottom: 8px; }
+  .stats-wrap { overflow-x: auto; max-width: 100%; }
+  table.stats { border-collapse: collapse; width: 100%; font-size: 12px; font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+  table.stats td { padding: 3px 6px; border-bottom: 1px solid rgba(42,54,72,0.6); vertical-align: top; }
+  table.stats td:first-child { color: var(--muted); white-space: nowrap; }
+  table.stats tr.warn td { color: var(--warning); }
+  .summary-line { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+  .summary-line b { color: var(--text); }
+  .summary-line .bad b { color: var(--warning); }
+  table.vendors { border-collapse: collapse; width: 100%; font-size: 12px; margin: 0 0 10px; }
+  table.vendors th { text-align: left; color: var(--muted); font-weight: 500; padding: 3px 6px; border-bottom: 1px solid var(--border); }
+  table.vendors td { padding: 3px 6px; border-bottom: 1px solid rgba(42,54,72,0.6); }
+  table.vendors td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  details { margin-top: 10px; font-size: 12px; }
+  details pre { white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow: auto; font-size: 11px; background: #0d141d; padding: 8px; border-radius: 5px; }
+  @media (max-width: 600px) {
+    body { padding: 16px 12px; }
+    .card { padding: 20px 16px; }
+    .row { flex-direction: column; gap: 0; }
+  }
+  /* multi-site: required site picker with inline "new site" */
+  .site-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .site-row select { flex: 1 1 180px; min-width: 0; }
+  .site-row button { width: auto; margin-top: 0; padding: 6px 10px; }
+  #siteNew { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  #siteNew input { flex: 1 1 160px; min-width: 0; }
+  #siteNew button { width: auto; margin-top: 0; padding: 6px 10px; }
+  select.invalid { outline: 2px solid #c0392b; }
+  /* B-23: visible keyboard focus on every interactive element */
+  button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>IACS_Monitor - Data Ingest</h1>
+    <p class="subtitle">Tell us what this file is before uploading - it's more reliable than guessing from content, and it fails predictably (rather than silently mis-parsing) if the answer is wrong.</p>
+
+    <label for="fileKind">What are you uploading?</label>
+    <select id="fileKind">
+      <option value="pcap">Network Capture (PCAP)</option>
+      <option value="fortigate_config">FortiGate — show full-configuration</option>
+      <option value="firewall">Firewall Config (Cisco / pfSense / Palo Alto)</option>
+      <option value="switch">Switch Config</option>
+      <option value="mac_table">MAC Address Table</option>
+      <option value="arp">ARP Table</option>
+      <optgroup label="FortiAnalyzer">
+        <option value="forti_report">FortiAnalyzer CSV Report</option>
+        <option value="forti_syslog">FortiAnalyzer Syslog / CEF Export</option>
+        <option value="forti_event">Single FortiAnalyzer Event (JSON)</option>
+      </optgroup>
+      <optgroup label="Logs">
+        <option value="syslog">Firewall Syslog — FortiGate / Cisco ASA / pfSense / PAN-OS</option>
+      </optgroup>
+      <optgroup label="Baseline / Audit Inputs">
+        <option value="baseline_comms">Approved Communications Matrix</option>
+        <option value="baseline_hosts">Approved Host List</option>
+        <option value="baseline_assets">Asset Inventory</option>
+        <option value="baseline_policies">Reviewed Policy List</option>
+      </optgroup>
+    </select>
+    <div class="hint" id="kindHint"></div>
+
+    <div id="vendorGroup">
+      <label for="vendor" id="vendorLabel">Vendor</label>
+      <select id="vendor"></select>
+    </div>
+
+    <div id="nameGroup" class="hidden">
+      <label for="deviceName" id="nameLabel">Device name</label>
+      <input type="text" id="deviceName" autocomplete="off">
+      <div class="hint" id="nameHint"></div>
+    </div>
+
+    <div id="zoneGroup" class="hidden">
+      <div class="row">
+        <div>
+          <label for="zoneFrom">Purdue zone from (less trusted)</label>
+          <select id="zoneFrom"></select>
+        </div>
+        <div>
+          <label for="zoneTo">Purdue zone to (more trusted)</label>
+          <select id="zoneTo"></select>
+        </div>
+      </div>
+      <div class="hint">Optional. Records which Purdue boundary this firewall enforces (e.g. 4 → 3 for an IT/OT perimeter) so it appears between the right swimlanes in the topology view. Set both or neither.</div>
+    </div>
+
+    <div id="fortiOptions" class="hidden">
+      <label class="check"><input type="checkbox" id="generateFindings" checked> Run config-level 62443 checks (generate findings)</label>
+      <label class="check"><input type="checkbox" id="populateApproved"> Extract admin trusted-hosts into the approved-host baseline</label>
+    </div>
+
+    <div id="baselineNameGroup" class="hidden">
+      <label for="baselineName">Baseline name</label>
+      <input type="text" id="baselineName" value="default" placeholder="e.g. 2024-Q4-audit">
+      <div class="hint" id="baselineHint">
+        A named snapshot of your audited baseline. Using a consistent name
+        (e.g. "2024-Q4-audit") groups all audit inputs together. New baseline
+        names deactivate the previous active baseline automatically.
+      </div>
+    </div>
+
+    <div id="siteGroup">
+      <label for="site" id="siteLabel">Site (required)</label>
+      <div class="site-row">
+        <select id="site" required aria-required="true" data-testid="site"><option value="">— choose site —</option></select>
+        <button type="button" id="siteNewBtn" title="Create a site (POST /sites)">+ New site</button>
+      </div>
+      <div id="siteNew" class="hidden">
+        <input type="text" id="siteNewName" maxlength="128" placeholder="New site name, e.g. Plant C" aria-label="New site name">
+        <button type="button" id="siteCreateBtn">Create</button>
+      </div>
+      <div class="hint" id="siteHint">Every upload belongs to one site (plant); its data is kept separate from other sites.</div>
+    </div>
+    <div class="hint hidden" id="siteLogHint">Log lines are stored in the site of the device that sent them (device registry: Devices page of the console). Lines from unknown devices are held as unmapped unless a site is picked above — it maps unknown devices only and never overrides an existing mapping (lines of a device registered to another site are held as conflicts).</div>
+    <label for="file">File</label>
+    <input type="file" id="file">
+
+    <button id="submitBtn" type="button">Upload</button>
+    <div id="result" class="hidden" role="status" aria-live="polite"></div>
+  </div>
+
+<script>
+"use strict";
+// Same-origin by default: when this page is served by the API (/ui/upload)
+// it must post back to the host it came from, not to the viewer's machine.
+const API_BASE = /^https?:$/.test(location.protocol) ? location.origin : "http://localhost:8000";
+
+// Purdue levels, highest first. Replaced at load time by GET /purdue-levels
+// (app/purdue.py, F-08); these constants are only the offline fallback.
+// 3.5 = the industrial DMZ between Site Operations and Enterprise.
+const ZONES = [5, 4, 3.5, 3, 2, 1, 0];
+const ZONE_NAMES = { 5: "Internet / External", 4: "Business / Enterprise", 3.5: "Industrial DMZ", 3: "Site Operations", 2: "Supervisory Control", 1: "Basic Control", 0: "Physical Process" };
+const ZONE_LABELS = {};
+
+// Each upload kind: endpoint and which parameters the handler accepts
+// (see app/api/routes.py). Params are sent as query parameters.
+const CONFIG = {
+  pcap: {
+    endpoint: "/ingest/pcap",
+    hint: "Format is detected automatically. Modbus, DNP3, S7comm, EtherNet/IP and PROFINET are dispatched by port/EtherType. Hosts are classified and industrial writes are checked against the approved-host baseline.",
+  },
+  fortigate_config: {
+    endpoint: "/ingest/fortigate-config",
+    hint: "Output of 'show full-configuration' from FortiOS (single- or multi-VDOM). Resolves address/service objects and populates firewall rules, interfaces and zones. Disabled policies are stored and flagged (checklist 3.8).",
+    name: { param: "firewall_name", label: "Firewall name (optional)", placeholder: "e.g. Perimeter-FW",
+            hint: "Stable label for this FortiGate. Defaults to 'set hostname' from the config, then the file name." },
+    zones: ZONES,
+    forti: true,
+  },
+  firewall: {
+    endpoint: "/ingest/firewall",
+    vendorParam: "vendor_hint",
+    vendorOptions: [
+      { value: "cisco", label: "Cisco IOS (ACL)" },
+      { value: "pfsense", label: "pfSense" },
+      { value: "palo_alto", label: "Palo Alto (PAN-OS, XML or set format)" },
+      { value: "", label: "Auto-detect from content" },
+    ],
+    hint: "Picking the vendor is more reliable than auto-detection and fails with a clear error if it doesn't match the file.",
+    name: { param: "firewall_device_name", label: "Firewall name (optional)", placeholder: "e.g. Corp-FW",
+            hint: "Identifies this device in the topology and findings." },
+    zones: ZONES,
+  },
+  switch: {
+    endpoint: "/ingest/switch",
+    vendorParam: "vendor_hint",
+    vendorOptions: [
+      { value: "cisco", label: "Cisco IOS" },
+      { value: "hp", label: "HP / ProCurve / Aruba" },
+      { value: "", label: "Auto-detect from content" },
+    ],
+    hint: "Covers running-config, VLAN listings, and CDP/LLDP neighbor output for that vendor - the specific 'show' command is detected automatically.",
+    name: { param: "device_name", label: "Switch hostname (optional)", placeholder: "e.g. ICS-SWITCH-01",
+            hint: "Needed for outputs that don't carry their own hostname (vlan brief, CDP/LLDP neighbor dumps). Running-config supplies its own." },
+  },
+  mac_table: {
+    endpoint: "/ingest/mac-table",
+    vendorParam: "vendor_hint",
+    vendorOptions: [
+      { value: "cisco", label: "Cisco (show mac address-table)" },
+      { value: "hp", label: "HP / ProCurve (show mac-address)" },
+      { value: "", label: "Auto-detect from content" },
+    ],
+    hint: "The MAC table links host identity to real VLAN membership, so the topology groups hosts by VLAN instead of guessing from subnet.",
+    name: { param: "device_name", label: "Switch hostname (optional)", placeholder: "e.g. ICS-SWITCH-01",
+            hint: "Tags which switch these entries came from." },
+  },
+  arp: {
+    endpoint: "/ingest/arp",
+    vendorParam: "format_hint",
+    vendorLabel: "Platform",
+    vendorOptions: [
+      { value: "cisco", label: "Cisco (show ip arp)" },
+      { value: "unix", label: "Linux / Unix (arp -a)" },
+      { value: "windows", label: "Windows (arp -a)" },
+      { value: "", label: "Auto-detect from content" },
+    ],
+    hint: "Populates hosts with the IP/MAC pairs found.",
+  },
+  forti_report: {
+    log: true,  // log upload: routed per device; site = map unknown devices (optional)
+    endpoint: "/ingest/forti-report",
+    hint: "FortiAnalyzer scheduled report exported as CSV (traffic, IPS or event datasets). Runs the real-time alert checks against each row.",
+  },
+  forti_syslog: {
+    log: true,  // log upload: routed per device; site = map unknown devices (optional)
+    endpoint: "/ingest/forti-syslog",
+    hint: "Syslog or CEF log file from FortiAnalyzer / FortiGate, one event per line (native key=value or CEF).",
+    name: { param: "device_name", label: "Fallback device name (optional)", placeholder: "e.g. Cell-FW-A",
+            hint: "Used only for log lines that have no devname= / deviceExternalId; lines that name their device keep it." },
+    summary: "syslog",
+  },
+  syslog: {
+    log: true,  // log upload: routed per device; site = map unknown devices (optional)
+    endpoint: "/ingest/syslog",
+    vendorParam: "vendor_hint",
+    vendorLabel: "Log format",
+    vendorOptions: [
+      { value: "auto", label: "Auto-detect per line" },
+      { value: "fortinet", label: "FortiGate (key=value / CEF)" },
+      { value: "cisco_asa", label: "Cisco ASA / FTD" },
+      { value: "pfsense", label: "pfSense / OPNsense (filterlog)" },
+      { value: "panos", label: "Palo Alto PAN-OS (CSV)" },
+    ],
+    hint: "Firewall syslog, one line per event. Duplicate lines are skipped, new events run the real-time checks, and traffic events stamp 'last matched' on the firewall rule that handled them.",
+    name: { param: "device_name", label: "Fallback device name (optional)", placeholder: "e.g. ASA-EDGE",
+            hint: "Used only for log lines that carry no hostname / devname." },
+    summary: "syslog",
+  },
+  forti_event: {
+    log: true,  // log upload: routed per device; site = map unknown devices (optional)
+    endpoint: "/ingest/forti-event",
+    json: true,
+    accept: ".json,application/json",
+    hint: "One FortiAnalyzer event as a JSON object (FortiGate log field names: devname, type, subtype, srcip, dstip, dstport, action, policyid, app, ...). Same as the webhook endpoint.",
+    name: { param: "device_name", label: "Fallback device name (optional)", placeholder: "e.g. Cell-FW-A",
+            hint: "Used only if the event has no devname field." },
+  },
+  baseline_comms: {
+    endpoint: "/ingest/baseline/comms-matrix", baseline: true,
+    hint: "Approved communications matrix CSV. Required columns: src, dst, dst_port. Optional: protocol, service_name, conduit, owner.",
+  },
+  baseline_hosts: {
+    endpoint: "/ingest/baseline/approved-hosts", baseline: true,
+    hint: "Approved host list CSV. Required: ip, role. Role must be one of: jump_host, admin_ws, engineering_ws, hmi.",
+  },
+  baseline_assets: {
+    endpoint: "/ingest/baseline/asset-inventory", baseline: true,
+    hint: "Asset inventory CSV. Required: ip or mac. Optional: hostname, device_type, purdue_level, zone, vlan. Hosts with purdue_level set are classified as manual (highest priority).",
+  },
+  baseline_policies: {
+    endpoint: "/ingest/baseline/reviewed-policies", baseline: true,
+    hint: "Reviewed firewall policy list CSV. Required: policy_id. Optional: conduit, owner, notes, last_reviewed.",
+  },
+};
+
+// Stats keys that mean "something in the file was not (fully) used".
+const WARN_KEYS = new Set([
+  "rules_disabled", "rules_skipped_negated_deny", "rules_skipped_no_action", "rules_skipped_ipv6",
+  "unresolved_object_groups", "unknown_port_names", "unresolved_objects", "fqdn_objects_in_policy",
+  "parse_failures", "rows_skipped", "skipped", "errors",
+]);
+
+const $ = id => document.getElementById(id);
+const fileKindEl = $("fileKind"), vendorEl = $("vendor"), resultEl = $("result"), submitBtn = $("submitBtn");
+
+// replaceChildren() would render null/false as the text "null"/"false"; drop them.
+function put(node, ...kids) { node.replaceChildren(...kids.flat().filter(k => k !== null && k !== undefined && k !== false)); }
+
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "text") e.textContent = String(v);
+    else e.setAttribute(k, v === true ? "" : String(v));
+  }
+  for (const c of children.flat()) {
+    if (c === null || c === undefined || c === false) continue;
+    e.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return e;
+}
+
+function fillZones(sel, zones) {
+  sel.replaceChildren(el("option", { value: "", text: "— not set —" }),
+    ...zones.map(z => el("option", { value: String(z), text: `${ZONE_LABELS[z] || "L" + z} — ${ZONE_NAMES[z] || ""}` })));
+}
+
+async function loadPurdueLevels() {
+  try {
+    const resp = await fetch(`${API_BASE}/purdue-levels`);
+    if (!resp.ok) return;
+    const d = await resp.json();
+    const lv = (Array.isArray(d && d.levels) ? d.levels : []).filter(x => x && typeof x.level === "number" && Number.isFinite(x.level));
+    if (!lv.length) return;
+    ZONES.splice(0, ZONES.length, ...lv.map(x => x.level).sort((a, b) => b - a));
+    for (const x of lv) { if (x.name) ZONE_NAMES[x.level] = String(x.name); if (x.label) ZONE_LABELS[x.level] = String(x.label); }
+    const cfg = CONFIG[fileKindEl.value];
+    if (cfg && cfg.zones) {
+      const zf = $("zoneFrom").value, zt = $("zoneTo").value;
+      fillZones($("zoneFrom"), ZONES); fillZones($("zoneTo"), ZONES);
+      $("zoneFrom").value = zf; $("zoneTo").value = zt;
+    }
+  } catch (_) { /* keep the fallback list */ }
+}
+
+function renderForKind(kind) {
+  const cfg = CONFIG[kind];
+  $("kindHint").textContent = cfg.hint || "";
+
+  const hasVendor = !!(cfg.vendorOptions && cfg.vendorOptions.length);
+  $("vendorGroup").classList.toggle("hidden", !hasVendor);
+  if (hasVendor) {
+    $("vendorLabel").textContent = cfg.vendorLabel || "Vendor";
+    vendorEl.replaceChildren(...cfg.vendorOptions.map(o => el("option", { value: o.value, text: o.label })));
+  }
+
+  $("nameGroup").classList.toggle("hidden", !cfg.name);
+  if (cfg.name) {
+    $("nameLabel").textContent = cfg.name.label;
+    $("deviceName").placeholder = cfg.name.placeholder || "";
+    $("nameHint").textContent = cfg.name.hint || "";
+  }
+
+  $("zoneGroup").classList.toggle("hidden", !cfg.zones);
+  if (cfg.zones) { fillZones($("zoneFrom"), cfg.zones); fillZones($("zoneTo"), cfg.zones); }
+
+  $("fortiOptions").classList.toggle("hidden", !cfg.forti);
+  const showBaseline = cfg.baseline || (cfg.forti && $("populateApproved").checked);
+  $("baselineNameGroup").classList.toggle("hidden", !showBaseline);
+
+  $("file").setAttribute("accept", cfg.accept || "");
+  // Log uploads are routed per device (multi-site phase 3): the site is
+  // optional there and only maps UNKNOWN devices.
+  $("siteLabel").textContent = cfg.log ? "Map unknown devices to (optional)" : "Site (required)";
+  $("site").required = !cfg.log;
+  $("site").setAttribute("aria-required", cfg.log ? "false" : "true");
+  if (cfg.log) $("site").classList.remove("invalid");
+  $("siteHint").classList.toggle("hidden", !!cfg.log);
+  $("siteLogHint").classList.toggle("hidden", !cfg.log);
+}
+// ---- sites (multi-site phase 1) ----
+const SITE_KEY = "iasc_site";
+function storedSite() { try { return localStorage.getItem(SITE_KEY) || ""; } catch (_) { return ""; } }
+async function loadSites(selectId) {
+  const sel = $("site");
+  const keep = selectId != null ? String(selectId) : (sel.value || storedSite());
+  try {
+    const resp = await fetch(`${API_BASE}/sites`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const rows = await resp.json();
+    sel.replaceChildren(el("option", { value: "", text: "— choose site —" }),
+      ...(Array.isArray(rows) ? rows : []).filter(x => x && x.id != null && x.name)
+        .map(x => el("option", { value: String(x.id), text: `${x.name}${x.code ? " (" + x.code + ")" : ""}` })));
+    if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+  } catch (e) { $("siteHint").textContent = `Could not load sites: ${e.message}`; }
+}
+$("siteNewBtn").addEventListener("click", () => { $("siteNew").classList.toggle("hidden"); $("siteNewName").focus(); });
+$("site").addEventListener("change", () => {
+  $("site").classList.toggle("invalid", !$("site").value);
+  try { if ($("site").value) localStorage.setItem(SITE_KEY, $("site").value); } catch (_) { /* storage blocked */ }
+});
+async function createSite() {
+  const name = $("siteNewName").value.trim();
+  if (!name) { showError("Enter a name for the new site."); return; }
+  $("siteCreateBtn").disabled = true;
+  try {
+    const resp = await fetch(`${API_BASE}/sites`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+    let data = null; try { data = await resp.json(); } catch (_) { /* ignore */ }
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${(data && typeof data.detail === "string") ? data.detail : "site not created"}`);
+    await loadSites(data.id);
+    $("site").classList.remove("invalid");
+    $("siteNewName").value = ""; $("siteNew").classList.add("hidden");
+    $("siteHint").textContent = `Site "${data.name}" created.`;
+  } catch (e) { showError(e.message); }
+  finally { $("siteCreateBtn").disabled = false; }
+}
+$("siteCreateBtn").addEventListener("click", createSite);
+$("siteNewName").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); createSite(); } });
+
+fileKindEl.addEventListener("change", () => { renderForKind(fileKindEl.value); resultEl.classList.add("hidden"); });
+$("populateApproved").addEventListener("change", () => renderForKind(fileKindEl.value));
+renderForKind(fileKindEl.value);
+loadPurdueLevels();
+loadSites();
+
+function buildParams(cfg) {
+  const params = new URLSearchParams();
+  if (!cfg.log) {
+    const site = $("site").value;
+    if (!site) { $("site").classList.add("invalid"); $("site").focus(); throw new Error("Choose the site this upload belongs to (or create one with \"+ New site\")."); }
+    params.set("site", site);
+  } else if ($("site").value) {
+    params.set("site", $("site").value);   // map unknown devices only
+  }
+  if (cfg.vendorParam && vendorEl.value) params.set(cfg.vendorParam, vendorEl.value);
+  if (cfg.name) {
+    const v = $("deviceName").value.trim();
+    if (v) params.set(cfg.name.param, v);
+  }
+  if (cfg.zones) {
+    const zf = $("zoneFrom").value, zt = $("zoneTo").value;
+    if ((zf === "") !== (zt === "")) throw new Error("Set both Purdue zones, or neither.");
+    if (zf !== "") {
+      if (Number(zf) <= Number(zt)) throw new Error("'Zone from' must be the less-trusted side (a higher level than 'zone to').");
+      params.set("purdue_zone_from", zf);
+      params.set("purdue_zone_to", zt);
+    }
+  }
+  if (cfg.forti) {
+    params.set("generate_findings", $("generateFindings").checked ? "true" : "false");
+    if ($("populateApproved").checked) {
+      params.set("populate_approved_hosts", "true");
+      const b = $("baselineName").value.trim();
+      if (!b) throw new Error("Enter a baseline name for the extracted approved hosts.");
+      params.set("baseline_name", b);
+    }
+  } else if (cfg.baseline) {
+    const b = $("baselineName").value.trim();
+    if (b) params.set("baseline_name", b);
+  }
+  return params;
+}
+
+submitBtn.addEventListener("click", async () => {
+  const kind = fileKindEl.value;
+  const cfg = CONFIG[kind];
+  const file = $("file").files[0];
+  if (!file) { showError("Please choose a file first."); return; }
+
+  let params, init;
+  try {
+    params = buildParams(cfg);
+    if (cfg.json) {
+      let payload;
+      try { payload = JSON.parse(await file.text()); }
+      catch (e) { throw new Error(`File is not valid JSON: ${e.message}`); }
+      if (!payload || typeof payload !== "object" || Array.isArray(payload))
+        throw new Error("Expected a single JSON object (one event).");
+      init = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) };
+    } else {
+      const fd = new FormData();
+      fd.append("file", file);
+      init = { method: "POST", body: fd };
+    }
+  } catch (e) { showError(e.message); return; }
+
+  const qs = params.toString();
+  const url = `${API_BASE}${cfg.endpoint}${qs ? "?" + qs : ""}`;
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Uploading...";
+  try {
+    const response = await fetch(url, init);
+    let data = null, raw = "";
+    try { raw = await response.text(); data = JSON.parse(raw); } catch (_) { /* non-JSON body */ }
+    if (response.ok) showSuccess(file.name, data ?? raw, cfg);
+    else showError(`Upload failed (HTTP ${response.status}): ${detailText(data, raw, response.statusText)}`, data);
+  } catch (err) {
+    showError(`Request failed: ${err.message}. Is the API reachable at ${API_BASE}?`);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Upload";
+  }
+});
+
+function detailText(data, raw, fallback) {
+  const d = data && data.detail;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) return d.map(x => `${(x.loc || []).join(".")}: ${x.msg}`).join("; ");
+  if (d) return JSON.stringify(d);
+  return (raw || fallback || "").slice(0, 500);
+}
+
+// Flatten {stats: {...}, classification: {...}} into "a.b" → scalar rows.
+function flatten(obj, prefix, out) {
+  for (const [k, v] of Object.entries(obj || {})) {
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (v !== null && typeof v === "object" && !Array.isArray(v)) flatten(v, key, out);
+    else if (Array.isArray(v)) out.push([key, v.length > 12 || v.some(x => x !== null && typeof x === "object") ? `${v.length} items` : v.join(", ")]);
+    else out.push([key, v]);
+  }
+  return out;
+}
+
+const SYSLOG_STATS = [["lines", "lines"], ["events_created", "events created"], ["duplicates_skipped", "duplicates skipped"],
+  ["parse_failures", "parse failures"], ["findings_created", "findings created"], ["escalations", "escalations"], ["rule_hits_updated", "rule hits updated"]];
+
+/** Syslog ingest: headline counters and the per-vendor table (stats.by_vendor). */
+function syslogSummary(data) {
+  const st = data && typeof data === "object" ? data.stats : null;
+  if (!st || typeof st !== "object") return null;
+  const byV = st.by_vendor && typeof st.by_vendor === "object" ? Object.entries(st.by_vendor) : [];
+  return el("div", { "data-testid": "syslog-summary" },
+    el("div", { class: "summary-line" }, SYSLOG_STATS.filter(([k]) => k in st).map(([k, label]) =>
+      el("span", { class: k === "parse_failures" && Number(st[k]) > 0 ? "bad" : null, "data-stat": k },
+        el("b", { text: Number(st[k]) || 0 }), " " + label))),
+    byV.length ? el("table", { class: "vendors", "data-testid": "by-vendor" },
+      el("thead", {}, el("tr", {}, ["Vendor", "Events created", "Duplicates skipped"].map(h => el("th", { text: h })))),
+      el("tbody", {}, byV.sort((a, b) => a[0].localeCompare(b[0])).map(([v, c]) => el("tr", { "data-vendor": v },
+        el("td", { text: v }), el("td", { class: "num", text: Number(c && c.events_created) || 0 }),
+        el("td", { class: "num", text: Number(c && c.duplicates_skipped) || 0 }))))) : null);
+}
+
+/** Log uploads (multi-site phase 3): where the lines went. */
+function routingSummary(data) {
+  const r = data && typeof data === "object" ? ((data.stats && data.stats.routing) || data.routing) : null;
+  if (!r || typeof r !== "object") return null;
+  const routed = r.routed && typeof r.routed === "object" ? Object.entries(r.routed) : [];
+  return el("div", { "data-testid": "routing-summary" },
+    el("div", { class: "summary-line" },
+      el("span", { class: Number(r.unmapped) > 0 ? "bad" : null, "data-stat": "unmapped" }, el("b", { text: Number(r.unmapped) || 0 }), " held (unmapped device)"),
+      el("span", { class: Number(r.conflicts) > 0 ? "bad" : null, "data-stat": "conflicts" }, el("b", { text: Number(r.conflicts) || 0 }), " held (conflict)"),
+      el("span", { "data-stat": "new_mappings" }, el("b", { text: Number(r.new_mappings) || 0 }), " new device mappings"),
+      el("span", { class: Number(r.site_conflicts) > 0 ? "bad" : null, "data-stat": "site_conflicts" }, el("b", { text: Number(r.site_conflicts) || 0 }), " site conflicts")),
+    routed.length ? el("table", { class: "vendors", "data-testid": "routing-by-site" },
+      el("thead", {}, el("tr", {}, ["Routed to site", "Events created", "Duplicates skipped"].map(h => el("th", { text: h })))),
+      el("tbody", {}, routed.map(([name, c]) => el("tr", { "data-site": name },
+        el("td", { text: name }), el("td", { class: "num", text: Number(c && c.events_created) || 0 }),
+        el("td", { class: "num", text: Number(c && c.duplicates_skipped) || 0 }))))) : null,
+    Number(r.unmapped) > 0 ? el("div", { class: "hint", text: "Held lines wait on the console's Devices page until their device is mapped to a site." }) : null,
+    Number(r.conflicts) > 0 || Number(r.conflict_duplicates) > 0 ? el("div", { class: "hint", text: "Conflicting lines (a device registered to another site, or a serial that differs from the registered one) are held, not routed, until resolved on the console's Devices page (Conflicts)." }) : null);
+}
+
+function showSuccess(filename, data, cfg) {
+  resultEl.className = "success";
+  const rows = typeof data === "object" && data ? flatten(data, "", []) : [["response", String(data)]];
+  const warnings = rows.filter(([k, v]) => WARN_KEYS.has(k.split(".").pop()) && Number(v) > 0);
+  put(resultEl, 
+    el("div", { class: "result-head", text: `Uploaded ${filename}` }),
+    cfg && cfg.summary === "syslog" ? syslogSummary(data) : null,
+    cfg && cfg.log ? routingSummary(data) : null,
+    warnings.length ? el("div", { class: "hint", style: "color:var(--warning);margin:0 0 8px",
+      text: `Check: ${warnings.map(([k, v]) => `${k.split(".").pop()} = ${v}`).join(", ")}` }) : null,
+    el("div", { class: "stats-wrap" }, el("table", { class: "stats", "data-testid": "stats" },
+      el("tbody", {}, rows.map(([k, v]) =>
+        el("tr", { class: WARN_KEYS.has(k.split(".").pop()) && Number(v) > 0 ? "warn" : null, "data-key": k },
+          el("td", { text: k.replace(/^stats\./, "") }), el("td", { text: v === null ? "—" : String(v) })))))),
+    el("details", {}, el("summary", { text: "Raw response" }), el("pre", { text: JSON.stringify(data, null, 2) })));
+}
+
+function showError(text, data) {
+  resultEl.className = "error";
+  put(resultEl, el("div", { "data-testid": "error-detail", text }),
+    data ? el("details", {}, el("summary", { text: "Raw response" }), el("pre", { text: JSON.stringify(data, null, 2) })) : null);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+ Status and Counters - Port Address Table
+
+  MAC Address   Located on Port  VLAN
+  -------------  ---------------  ----
+  001122-334455        1           10
+  001122-334466        2           20
+  001122-334477        5           10
+  001122-334488        6           20

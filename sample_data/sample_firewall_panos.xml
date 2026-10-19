@@ -1,0 +1,30 @@
+<config version="10.1.0">
+  <devices>
+    <entry name="localhost.localdomain">
+      <vsys>
+        <entry name="vsys1">
+          <rulebase>
+            <security>
+              <rules>
+                <entry name="Allow-Modbus">
+                  <from><member>trust</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>10.0.1.0/24</member></source>
+                  <destination><member>10.0.1.10</member></destination>
+                  <service><member>tcp-502</member></service>
+                  <action>allow</action>
+                </entry>
+                <entry name="Deny-All">
+                  <source><member>any</member></source>
+                  <destination><member>any</member></destination>
+                  <service><member>any</member></service>
+                  <action>deny</action>
+                </entry>
+              </rules>
+            </security>
+          </rulebase>
+        </entry>
+      </vsys>
+    </entry>
+  </devices>
+</config>

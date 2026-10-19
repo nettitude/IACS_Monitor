@@ -1,0 +1,21 @@
+# Build / test output
+dist/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+# Local databases and generated reports (never commit real findings)
+*.db
+*.db-wal
+*.db-shm
+isa62443_compliance_report.pdf
+# Environment
+.env
+.env.*
+.venv/
+
+# macOS / scheduler
+.DS_Store
+iasc_scheduler.lock
+*.pdf
