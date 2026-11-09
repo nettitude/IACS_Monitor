@@ -734,8 +734,19 @@ def parse_fortinet_switch_config(text: str) -> tuple:
         uplink = name in trunks or name in trunk_members or name.lower().startswith("__fortilink") or _s(ic, "fortilink-port", "disable") == "enable"
         mode = "trunk" if (allowed or uplink or _s(ic, "allowed-vlans-all", "disable") == "enable") else "access"
         sec = _s(ic, "security-mode", "none")
+        # owner 2026-11-09: `config port-security` under the interface says whether the mode admits
+        # unauthenticated devices (open-auth) or falls back to MAC authentication bypass
+        psec = ic.get("port-security") if isinstance(ic.get("port-security"), dict) else {}
+        if sec in ("", "none"):
+            sec_mode = None
+        elif _s(psec, "open-auth", "disable") == "enable":
+            sec_mode = "open-auth"
+        elif _s(psec, "mac-auth-bypass", "disable") == "enable" or "mac-based" in sec.lower():
+            sec_mode = "802.1x-mab"
+        else:
+            sec_mode = "802.1x"
         pc = phys.get(name) or {}
-        interfaces.append({"port_name": name, "mode": mode,
+        interfaces.append({"port_name": name, "mode": mode, "port_security_mode": sec_mode,
                            "vlan": ("all" if _s(ic, "allowed-vlans-all", "disable") == "enable" else ",".join(sorted({*([native] if native else []), *allowed}, key=lambda x: int(x) if x.isdigit() else 0))) if mode == "trunk" else native,
                            "vlan_name": (vlans.get(native) if native else None) if mode == "access" else None,
                            "description": _s(ic, "description") or _s(pc, "description") or None,
@@ -902,6 +913,7 @@ def ingest_switch_config(
             iface.description = iface_data["description"]
             iface.admin_status = iface_data["admin_status"]
             iface.port_security_policy = iface_data["port_security_policy"]
+            iface.port_security_mode = iface_data.get("port_security_mode")
             iface.uplink = bool(iface_data["uplink"])
             iface.source_file = f"fortiswitch:{source_file or effective_device}"
             stats["interfaces_touched"] += 1

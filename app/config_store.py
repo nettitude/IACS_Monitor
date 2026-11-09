@@ -396,6 +396,7 @@ def _locate(lines: list, check_name: str, d: dict, rule, vendor: str) -> Optiona
         l.strip().lower().startswith("config system global") for l in lines[:50])
     if forti:
         pid, vdom = _policy_ref(d)
+        vdom = vdom or (str(d["vdom"]) if d.get("vdom") not in (None, "") else None)   # local-in per VDOM (2026-11-09)
         if pid and check_name != "config_local_in_permits_all":
             b = find_block(lines, "firewall policy", pid, vdom)
             if b:

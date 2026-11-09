@@ -18,7 +18,7 @@ and raises findings mapped to 62443-3-3 SRs, checklist rows, FR and SL. Multi-si
 
 ## Current state
 
-- Release **2026.10.09.38** (2026-11-09). Alembic head **`b4c5d6e7f8a9`**. **185 checks**. Full suite **2855 passed, 11 skipped** (one timing-budget test failed under load, passed alone).
+- Release **2026.10.09.38** (2026-11-09). Alembic head **`c5d6e7f8a9b0`** (unreleased, `port_security_mode`). **185 checks**. Full suite **2867 passed, 11 skipped** (2026-11-09, after the owner batch; unreleased).
 - Full suite: **2855 passed, 11 skipped** (timing-budget tests can fail under load, pass alone) on the owner's Mac (7 skips need PostgreSQL server
   binaries, 4 legacy-DB snapshots; the cloud had 1 skip). Flaky health test deselected, see Testing.
 - UI smoke: 21 sections in `ui_smoke_index.py` (19 ran 19/19 on .16; `nettopo`, `fwports` written 2026-10-16/17, not yet run - Playwright not installed; `lanematrix` removed 2026-10-18) and 7/7 (`ui_smoke_pages.py`).
@@ -75,7 +75,7 @@ app/parsers/device_classification.py, subnet_zones.py   host Purdue classificati
 generate_report.py       PDF report
 generate_audit_report.py Audit report (PDF + CSV) from the Master Audit Checklist workbook; app/audit_checklist.py reads it
 ui/index.html            console (vanilla JS, el() DOM builder, textContent only)
-alembic/versions/        50 migrations, all idempotent (alembic/iasc_migration_utils.py)
+alembic/versions/        51 migrations, all idempotent (alembic/iasc_migration_utils.py)
 tests/                   pytest suite + Playwright smoke (ui_*.py, not collected)
 docs/                    design docs, check reference (+ xlsx), docker guide, tracker
 ```
@@ -537,6 +537,21 @@ pytest. `docker-compose.yml`, `build.sh` and docs/docker-install.md already use 
   ("LRQA consultants") / `build_revisions`, `report_date` on the cover.
   2026-10-25: `ui/lrqa_logo.png` (owner's LRQA logo) on the audit report cover (`_draw_cover` `logo`; `generate_audit_report.LOGO`);
   `make-dist.sh` ships `generate_audit_report.py`.
+
+## Since .38 (2026-11-09, unreleased)
+
+- Owner batch ("build 1,3 and AV a with the plus items"; tracker "Owner batch 2026-11-09"): address groups with
+  `exclude enable` / `exclude-member` resolve to members minus the exclusions (`_group_exclusions`,
+  `_subtract_addresses`, `_groups_with_exclusions`; rule-text note "… group X excludes Y"; `stats["addrgrp_exclusions"]`);
+  `config_permit_any_any_any` is high when service is ALL and the source interface is a remote-access tunnel
+  (dial-up IPsec incl. `set usrgrp`, `ssl.<vdom>`; evidence `from_remote_access`, `remote_access_interfaces`, `identity`);
+  `config_av_missing_on_file_policy` is info when every destination interface is labelled L0-L3 (`destination_in_ot`,
+  `dst_level`); `SwitchInterface.port_security_mode` (`802.1x` / `802.1x-mab` / `open-auth`; migration `c5d6e7f8a9b0`,
+  head) read from the FortiLink 802.1X policy (`fortiswitch_parser.policy_mode`) and FortiSwitchOS `security-mode` +
+  `config port-security`; `review_switch_port_nac` counts open-auth ports as unprotected (`open_auth_ports`,
+  `no_policy_ports`, `mab_ports`); `access_paths.tunnel_selector_map` keys FortiOS zones whose members are all
+  tunnel interfaces (union of remote selectors, no local bound; mixed zones not); `config_local_in_permits_all` judged
+  per VDOM table (ctx `vdom_views`, `ref_key local-in:<vdom>/<id>`, evidence `vdom`). Test `tests/test_owner_batch_1109.py`.
 
 ## Open / not started (owner hasn't asked)
 

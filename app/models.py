@@ -751,6 +751,10 @@ class SwitchInterface(SiteScoped, Base):
     neighbor_protocol = Column(String(8), nullable=True)  # "cdp" / "lldp"
     # owner 2026-10-19 (FortiLink-managed FortiSwitch): the port-security (802.1X) policy, admin state, uplink
     port_security_policy = Column(String(128), nullable=True)
+    # owner 2026-11-09: what the bound policy does - "802.1x", "802.1x-mab" (MAC authentication
+    # bypass for devices that cannot do 802.1X) or "open-auth" (unauthenticated devices admitted:
+    # the port counts as unprotected in review_switch_port_nac); NULL when the policy is not known
+    port_security_mode = Column(String(32), nullable=True)
     admin_status = Column(String(8), nullable=True)       # "up" / "down" when the config says
     uplink = Column(Boolean, nullable=False, default=False, server_default=false())
 

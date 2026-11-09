@@ -232,9 +232,16 @@ _TUNNEL_SELECTORS: _cv.ContextVar = _cv.ContextVar("iasc_tunnel_selectors", defa
 
 def tunnel_selector_map(db) -> dict:
     """The remote-side selectors of every site-to-site tunnel interface, as one
-    address spec per (firewall_id, interface name lower); empty when none."""
-    from app.models import FirewallInterface
+    address spec per (firewall_id, interface name lower); empty when none.
+
+    owner 2026-11-09: a FortiOS zone whose members are ALL tunnel interfaces with
+    usable selectors is keyed too (the union of its members' remote selectors, no
+    local bound) - a policy that names the zone instead of the tunnel is bounded
+    the same way.  A zone that mixes a tunnel with a LAN interface is not: the
+    traffic may enter on the LAN member and nothing bounds it."""
+    from app.models import FirewallInterface, FirewallZoneDef
     out: dict = {}
+    raw_remotes: dict = {}          # (firewall_id, interface lower) -> the remote selector strings
     for i in db.query(FirewallInterface).filter(FirewallInterface.tunnel_info.isnot(None)):
         info = i.tunnel_info if isinstance(i.tunnel_info, dict) else {}
         sels = info.get("selectors") or []
@@ -248,6 +255,22 @@ def tunnel_selector_map(db) -> dict:
             out[(i.firewall_id, str(i.name).lower())] = (
                 rm.parse_address(",".join(remotes), v6_default_is_any=False),
                 rm.parse_address(",".join(locals_), v6_default_is_any=False) if locals_ and len(locals_) == len(sels) else None)
+            raw_remotes[(i.firewall_id, str(i.name).lower())] = list(remotes)
+        except Exception:      # noqa: BLE001
+            continue
+    if not raw_remotes:
+        return out
+    for zd in db.query(FirewallZoneDef).filter(FirewallZoneDef.kind == "zone"):
+        fw_id, zone = zd.firewall_id, str(zd.name).lower()
+        members = [str(m).strip('"').lower() for m in (zd.members or []) if str(m).strip()]
+        if (fw_id, zone) in out or not members or zd.members_resolved is False:
+            continue                                     # an interface of that name wins; unresolved = unknown
+        keys = [(fw_id, m) for m in members]
+        if not all(k in raw_remotes for k in keys):
+            continue                                     # a member without selectors: unbounded zone
+        remotes = sorted({r for k in keys for r in raw_remotes[k]})
+        try:
+            out[(fw_id, zone)] = (rm.parse_address(",".join(remotes), v6_default_is_any=False), None)
         except Exception:      # noqa: BLE001
             continue
     return out

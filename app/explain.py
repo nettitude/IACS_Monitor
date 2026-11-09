@@ -189,9 +189,9 @@ _e("config_insecure_mgmt_protocol switch_insecure_mgmt_protocol",
    "Disable HTTP / Telnet administration; use HTTPS and SSH only.")
 _e("switch_port_no_nac",
    "Enabled access ports of a FortiLink-managed or standalone FortiSwitch have no port-security (802.1X / MAC authentication) "
-   "policy: any device plugged in joins the VLAN. Medium when such ports sit on VLANs labelled L0-L2; uplinks, "
-   "trunks and ports set down are not counted. A policy with open-auth or MAC-auth-bypass enabled exists but does "
-   "not authenticate.",
+   "policy, or a policy whose open-auth setting admits devices that fail or skip authentication: any device "
+   "plugged in joins the VLAN. Medium when such ports sit on VLANs labelled L0-L2; uplinks, trunks and ports set "
+   "down are not counted. MAC authentication bypass alone still authenticates (weakly) and is only listed.",
    "Bind a port-security policy (config switch-controller security-policy 802-1X) to the access ports - 802.1X with "
    "MAC authentication bypass only for devices that cannot do 802.1X, no open-auth - or document the ports that must "
    "stay open and why.",
@@ -261,7 +261,7 @@ _e("config_local_in_permits_all",
    "list still stands between them and the admin services. Each source is placed against this firewall: an "
    "interface network or a routed network is inside the site; a public address, a network behind an IPsec / "
    "SSL-VPN tunnel (selector, client pool or tunnel route) or a private address the firewall has no path to "
-   "is outside it.",
+   "is outside it. On a multi-VDOM firewall each VDOM's local-in table is judged on its own.",
    "Limit the local-in policy to the services it exists for (IKE, ICMP, HTTPS/SSH from the admin "
    "hosts) and keep the default deny below it.")
 _e("config_ipsec_peer_unrestricted",
@@ -289,7 +289,8 @@ _e("remote_access_app",
 # --- rules / policy hygiene ----------------------------------------------------------
 _e("config_permit_any_any_any cross_fw_any_any_permit",
    "The policy permits 'all' in its source, destination or service (critical when all three): the "
-   "boundary lets through more than the documented flows - into OT or out to the Internet it is high.",
+   "boundary lets through more than the documented flows - into OT, out to the Internet, or every service "
+   "from a remote-access tunnel (SSL-VPN, dial-up IPsec) it is high.",
    "Replace 'all' with the specific hosts, networks and services the conduit needs, or record the "
    "justification (acknowledge the finding with a note).")
 _e("config_temporary_rule",
@@ -558,8 +559,11 @@ _e("config_ids_ips_missing config_industrial_dpi_missing",
    "and malicious industrial commands pass unseen.",
    "Apply an IPS sensor (with industrial signatures) to the conduit policy.")
 _e("config_av_missing_on_file_policy config_no_av_profile config_av_profile_not_applied",
-   "Files cross the conduit without anti-malware inspection.",
-   "Configure an AV profile and apply it to the conduit policies carrying file content.")
+   "Files cross the conduit without anti-malware inspection. Judged by the destination: into the DMZ or the "
+   "enterprise (an interface above L3, or unlabelled) it is medium; between OT zones (destination labelled L0-L3) "
+   "it is informational, inline inspection there is usually not wanted by the controller vendors.",
+   "Configure an AV profile and apply it to the conduit policies carrying file content into the DMZ and "
+   "enterprise; inside OT, record the decision.")
 _e("config_rsp_check_disabled",
    "Anti-spoofing (reverse-path check) is off, so packets with forged source addresses are accepted.",
    "Enable strict reverse-path checking on OT interfaces.")

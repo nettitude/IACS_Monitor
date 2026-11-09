@@ -696,16 +696,100 @@ def _resolve_address(name: str, addr_objects: dict, addr_groups: dict,
         return [f"unresolved:{name}"]
 
     if name in addr_groups:
-        members = addr_groups[name].get("member", [])
+        grp = addr_groups[name]
+        members = grp.get("member", [])
         if isinstance(members, str):
             members = [members]
         c0 = memo.cycles
         result = []
         for m in members:
             result.extend(_resolve_address(m, addr_objects, addr_groups, _seen, stats, memo))
+        # owner 2026-11-09: FortiOS 7.x `set exclude enable` + `set exclude-member`: the group is
+        # its members MINUS the excluded objects.  Before, "All_OT minus Historian" resolved to all
+        # of OT and every check / Access Review row on it was wider than the firewall itself.
+        excl_names = _group_exclusions(grp)
+        if excl_names:
+            excl = []
+            for m in excl_names:
+                excl.extend(_resolve_address(m, addr_objects, addr_groups, _seen, stats, memo))
+            result, cut = _subtract_addresses(result, excl)
+            if cut and stats is not None:
+                stats["addrgrp_exclusions"] = stats.get("addrgrp_exclusions", 0) + 1
         return _memo_store(memo, name, result, c0, stats, name)
 
     return [f"unresolved:{name}"]
+
+
+def _group_exclusions(grp: dict) -> list:
+    """The `exclude-member` names of an address group with `exclude enable` ([] otherwise)."""
+    if not isinstance(grp, dict):
+        return []
+    if str(_norm_scalar(grp.get("exclude", "disable")) or "disable").strip('"').lower() != "enable":
+        return []
+    return [str(x).strip('"') for x in _as_list(grp.get("exclude-member")) if str(x).strip('"')]
+
+
+def _subtract_addresses(tokens: list, excluded: list) -> tuple:
+    """(tokens minus the excluded networks, changed?).  Only concrete networks are
+    subtracted (``any`` counts as 0.0.0.0/0 in an IPv4 group); FQDN / range /
+    unresolved / dynamic tokens on either side are left alone - an exclusion the
+    parser cannot evaluate must not widen or narrow anything."""
+    ex_nets = []
+    for t in excluded:
+        try:
+            ex_nets.append(ipaddress.ip_network(str(t), strict=False))
+        except ValueError:
+            continue
+    if not ex_nets:
+        return tokens, False
+    out, changed = [], False
+    for tok in tokens:
+        try:
+            net = ipaddress.ip_network("0.0.0.0/0" if tok == "any" else str(tok), strict=False)
+        except ValueError:
+            out.append(tok)
+            continue
+        pieces = [net]
+        for ex in ex_nets:
+            if ex.version != net.version:
+                continue
+            nxt = []
+            for pc in pieces:
+                if ex.supernet_of(pc) or ex == pc:
+                    changed = True                       # wholly excluded
+                elif pc.supernet_of(ex):
+                    changed = True
+                    nxt.extend(pc.address_exclude(ex))
+                else:
+                    nxt.append(pc)
+            pieces = nxt
+        if pieces == [net] and tok == "any" and not changed:
+            out.append(tok)
+        else:
+            out.extend(str(pc) for pc in sorted(pieces, key=lambda n: (int(n.network_address), n.prefixlen)))
+    return out, changed
+
+
+def _groups_with_exclusions(addr_groups: dict) -> dict:
+    """{group name: [exclude-member names]} for every group that excludes members,
+    and for every group that contains such a group (the cut is inherited)."""
+    direct = {str(n): _group_exclusions(g) for n, g in (addr_groups or {}).items()}
+    direct = {n: e for n, e in direct.items() if e}
+    if not direct:
+        return {}
+    out = dict(direct)
+    changed = True
+    while changed:
+        changed = False
+        for n, g in (addr_groups or {}).items():
+            if n in out or not isinstance(g, dict):
+                continue
+            mem = [str(x).strip('"') for x in _as_list(g.get("member"))]
+            inner = [m for m in mem if m in out]
+            if inner:
+                out[str(n)] = sorted({e for m in inner for e in out[m]})
+                changed = True
+    return out
 
 
 # Built-in / predefined FortiGate services (common ICS + IT services that
@@ -1486,6 +1570,7 @@ def _policy_rows(policy_id, position, cfg, is_policy6, iface_to_zone,
     portfwd_by_dst: dict = {}
 
     memos = {id(addr_groups): _Memo(), id(addr6_groups): _Memo()}
+    _excl_maps: dict = {}          # id(groups) -> {group: exclude-member names}
 
     def _resolve_side(names, field, objs, groups, v6, use_vips):
         out = []
@@ -1508,6 +1593,15 @@ def _policy_rows(policy_id, position, cfg, is_policy6, iface_to_zone,
             else:
                 resolved = _resolve_address(name, objs, groups, stats=stats,
                                             _memo=memos[id(groups)])
+                # owner 2026-11-09: say in the rule's notes when an address group's
+                # exclude-member list cut its members (the row is narrower than the names)
+                if id(groups) not in _excl_maps:
+                    _excl_maps[id(groups)] = _groups_with_exclusions(groups) if isinstance(groups, dict) else {}
+                _ex = _excl_maps[id(groups)].get(name)
+                if _ex:
+                    _n = f"{field} group {name} excludes {', '.join(_ex[:6])}"
+                    if _n not in notes:
+                        notes.append(_n)
             for val in resolved:
                 if val.startswith("fqdn:") or val.startswith("wildcard-fqdn:"):
                     obj_type = "wildcard-fqdn" if val.startswith("wildcard-fqdn:") else "fqdn"
@@ -2440,12 +2534,19 @@ def _config_findings(policies: list, zones: dict,
         return out
 
     _ANY = ("any", "all", "0.0.0.0/0", "::/0", "")
+    # owner 2026-11-09: a remote-access tunnel (SSL-VPN ssl.<vdom>, dial-up IPsec) as the SOURCE of a
+    # policy with service ALL is high whatever the destination - a remote user with every service is
+    # the classic vendor-access gap
+    ra_ifaces = {str(x).lower() for x in (ctx_any.get("dialup_tunnels") or ())}
+
+    def _remote_access(names: set) -> set:
+        return {t for t in names if t in ra_ifaces or t == "ssl" or t.startswith("ssl.")}
     by_pol: dict = {}
     for pol in policies:
         if pol.get("action") != "permit":
             continue
         e = by_pol.setdefault(str(pol["policy_id"]), {"pol": pol, "src": False, "dst": False, "svc": False,
-                                                     "ext": set(), "dst_if": set()})
+                                                     "ext": set(), "dst_if": set(), "src_if": set()})
         e["src"] |= str(pol.get("src") or "").strip().lower() in _ANY
         e["dst"] |= str(pol.get("dst") or "").strip().lower() in _ANY
         e["svc"] |= (str(pol.get("protocol") or "any").lower() == "any"
@@ -2454,6 +2555,7 @@ def _config_findings(policies: list, zones: dict,
         if x:
             e["ext"].add(x)
         e["dst_if"] |= _side(pol.get("dst_zone") or pol.get("dst_intf"))
+        e["src_if"] |= _side(pol.get("src_zone") or pol.get("src_intf"))
     for pid, e in by_pol.items():
         pos = [n for n, k in (("source", "src"), ("destination", "dst"), ("service", "svc")) if e[k]]
         if not pos:
@@ -2461,12 +2563,17 @@ def _config_findings(policies: list, zones: dict,
         pol = e["pol"]
         into_ot = bool(e["dst_if"] & ot_ifaces) or ctx_any.get("boundary_into_ot") is True
         to_internet = bool(e["dst_if"] & wan_ifaces) or bool(e["ext"])
+        ra_src = sorted(_remote_access(e["src_if"])) if e["svc"] else []
         if len(pos) == 3:
             sev, why = "critical", "source, destination and service are all 'all'"
         elif into_ot or to_internet:
             sev = "high"
             why = "'all' " + ("into OT" if into_ot else "") + (" and " if into_ot and to_internet else "") + \
                   ("out to the Internet" if to_internet else "")
+            if ra_src:
+                why += f"; every service from the remote-access tunnel {', '.join(ra_src)}"
+        elif ra_src:
+            sev, why = "high", f"every service from the remote-access tunnel {', '.join(ra_src)}"
         else:
             sev, why = "medium", "'all' between internal zones"
         findings.append({
@@ -2487,6 +2594,8 @@ def _config_findings(policies: list, zones: dict,
                 "src_zone": pol.get("src_zone"), "dst_zone": pol.get("dst_zone"),
                 "external_destinations": sorted(e["ext"])[:10],
                 "into_ot": into_ot, "to_internet": to_internet,
+                "from_remote_access": bool(ra_src), "remote_access_interfaces": ra_src,
+                "identity": [x.strip().strip('"') for x in str(pol.get("src_identity") or "").split(",") if x.strip()][:20],
                 "severity_reason": why,
                 "checklist_title": "No any/any rules; no 'all' in source, destination or service without justification",
             },
@@ -4665,8 +4774,13 @@ def _hardening_findings(
     # entry for every service hands the management plane, routing and VPN
     # daemons to its sources; allowaccess still limits the admin services,
     # but the policy no longer does.
-    _li_reg = None                       # address registry, built once for the local-in entries
-    for lid, lcfg in (parsed.get("firewall local-in-policy") or {}).items():
+    # owner 2026-11-09: local-in ids restart per VDOM - judge each VDOM's table (ctx "vdom_views") so
+    # two VDOMs' policy 1 are two findings keyed "local-in:<vdom>/1" instead of one overwriting the other
+    _li_views = [(v, t) for v, t in ((ctx or {}).get("vdom_views") or []) if isinstance(t, dict)] or [(None, parsed)]
+    _li_entries = [(vn, lid, lcfg, vt) for vn, vt in _li_views
+                   for lid, lcfg in (vt.get("firewall local-in-policy") or {}).items()]
+    _li_regs: dict = {}                  # address registry per VDOM view, built on first use
+    for _li_vdom, lid, lcfg, _li_tree in _li_entries:
         if not isinstance(lcfg, dict) or str(lcfg.get("action", "deny")).lower() != "accept":
             continue
         if str(lcfg.get("status", "enable")).lower() == "disable":
@@ -4680,9 +4794,9 @@ def _hardening_findings(
                       or i.lower().startswith(("wan", "modem")) for i in intf)
         any_src = any(x.lower() == "all" for x in srcs)
         # owner 2026-10-19: resolve the source objects / groups so the finding says what they are
-        if _li_reg is None:
-            _li_reg = _build_addr_registry(parsed)
-        _ao, _ag = _li_reg
+        if _li_vdom not in _li_regs:
+            _li_regs[_li_vdom] = _build_addr_registry(_li_tree)
+        _ao, _ag = _li_regs[_li_vdom]
         resolved, ext, wide, remote, unplaced, places = [], [], [], [], [], {}
         for sname in srcs:
             if sname.lower() in ("all", "any"):
@@ -4705,12 +4819,13 @@ def _hardening_findings(
         any_src = any_src or "any" in resolved          # a group that contains "all" (audit 2026-10-19)
         n_out = len(ext) + len(remote) + len(unplaced)
         sev = "high" if outside and (any_src or n_out) else "medium"
+        _li_key = f"{_li_vdom}/{lid}" if _li_vdom else str(lid)
         finding("config_local_in_permits_all",
                 sev, "SR 5.1, SR 2.1", "5.8",
-                f"Local-in policy {lid} accepts every service to the firewall on "
-                f"{', '.join(intf)} from {', '.join(srcs)}"
+                f"Local-in policy {lid}" + (f" (vdom {_li_vdom})" if _li_vdom else "")
+                + f" accepts every service to the firewall on {', '.join(intf)} from {', '.join(srcs)}"
                 + (f" ({len(resolved)} address(es), {n_out} outside the site)" if resolved and not any_src else ""),
-                {"ref_key": f"local-in:{lid}", "local_in_policy": str(lid), "interfaces": intf,
+                {"ref_key": f"local-in:{_li_key}", "local_in_policy": str(lid), "vdom": _li_vdom, "interfaces": intf,
                  "srcaddr": srcs, "sources_resolved": resolved[:40], "source_count": len(resolved),
                  "external_sources": ext[:20], "remote_sources": remote[:20], "unplaced_sources": unplaced[:20],
                  "wide_sources": wide[:20], "source_places": dict(list(places.items())[:40]),
@@ -4863,6 +4978,25 @@ def _hardening_findings(
     # Only applicable to policies whose resolved service port is in
     # _FILE_TRANSFER_PORTS — DPI AV on a Modbus policy isn't meaningful.
     # A cross-zone file-transfer policy without an av-profile applied is the finding.
+    # owner 2026-11-09 (option a): judged by the DESTINATION - inline AV between two OT zones (a
+    # destination interface labelled L0-L3) is informational, controller vendors advise against
+    # inline inspection there; into the DMZ / enterprise (L3.5 and above) or unlabelled it stays medium.
+    _av_lvls = (ctx or {}).get("iface_levels") or {}
+    _av_zone_members: dict = {}
+    for _in, _zi in (zones or {}).items():
+        _zn = (_zi or {}).get("zone") if isinstance(_zi, dict) else None
+        if _zn:
+            _av_zone_members.setdefault(str(_zn).lower(), set()).add(str(_in).lower())
+
+    def _dst_levels(dst_z: str) -> list:
+        out = []
+        for t in str(dst_z or "").split(","):
+            t = t.strip().lower()
+            if not t:
+                continue
+            for m in _av_zone_members.get(t, {t}):
+                out.append(_av_lvls.get(m))
+        return out
     seen_av_pids: set = set()
     for pol in policies:
         pid = pol.get("policy_id")
@@ -4877,13 +5011,22 @@ def _hardening_findings(
         carries_files = _port_hits(port_str, _FILE_TRANSFER_PORTS)
         if carries_files and not pol.get("av_profile"):
             seen_av_pids.add(pid)
+            lv = _dst_levels(dst_z)
+            in_ot = bool(lv) and all(isinstance(x, (int, float)) and x <= 3 for x in lv)
+            dst_level = max(lv) if lv and all(isinstance(x, (int, float)) for x in lv) else None
             finding("config_av_missing_on_file_policy",
-                    "medium", "SR 3.3, SR 3.2", "",
-                    f"Cross-zone file-transfer policy {pid} ({src_z}→{dst_z}, port {port_str}) has no AV profile",
+                    "info" if in_ot else "medium", "SR 3.3, SR 3.2", "",
+                    f"Cross-zone file-transfer policy {pid} ({src_z}→{dst_z}, port {port_str}) has no AV profile"
+                    + (f" (destination labelled L{dst_level:g}: inline AV inside OT is informational)" if in_ot else ""),
                     {"policy_id": pid,
                      "policy_name": pol.get("policy_name"),
                      "src_zone": src_z, "dst_zone": dst_z,
                      "dst_port": port_str,
+                     "dst_level": dst_level, "destination_in_ot": in_ot,
+                     "severity_reason": ("destination interface labelled L0-L3 - inline anti-malware between OT zones "
+                                         "is usually not wanted" if in_ot else
+                                         "destination above L3 or unlabelled - file flows into the DMZ / enterprise "
+                                         "are where inline AV is expected"),
                      "checklist_title": "Anti-malware enabled on conduit policies carrying file content"})
 
     # ------------------------------------------------------------------ 7.5 Scheduled backup --
@@ -5434,7 +5577,8 @@ def dialup_ipsec_names(views) -> set:
             if not isinstance(cfg, dict) or str(cfg.get("type", "")).lower() != "dynamic":
                 continue
             if (str(cfg.get("mode-cfg", "")).lower() == "enable" or str(cfg.get("eap", "")).lower() == "enable"
-                    or cfg.get("xauthtype") not in (None, "", "disable") or cfg.get("authusrgrp")):
+                    or cfg.get("xauthtype") not in (None, "", "disable") or cfg.get("authusrgrp")
+                    or cfg.get("usrgrp")):          # IKEv2 user group (owner 2026-11-09: users = remote access)
                 out.add(str(name).strip().lower())
     return out
 
@@ -6151,6 +6295,7 @@ def ingest_fortigate_config(
                     "tunnel_interfaces": sorted(_tunnels), "dialup_tunnels": sorted(_dialup),
                     "tunnel_nets": _tunnel_nets(parsed, _tun_all), "tunnels": _tun_all,
                     "dos_policies": (parsed.get("firewall DoS-policy") or {}),
+                    "vdom_views": [(n, t) for n, t in views if n is not None] or None,   # owner 2026-11-09
                     "boundary_into_ot": purdue_zone_to is not None and purdue_zone_to <= 2,
                     "fqdn_permit_policies": _fqdn_pols,
                     "fqdn_into_ot": purdue_zone_to is not None and purdue_zone_to <= 2}

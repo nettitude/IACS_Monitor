@@ -196,7 +196,7 @@ def test_parse_fortinet_switch_config():
     by = {i["port_name"]: i for i in ifs}
     assert host == "sw-standalone" and vlans == {"20": "ot-control", "30": "ot-hmi"}
     assert by["port1"] == {"port_name": "port1", "mode": "access", "vlan": "20", "vlan_name": "ot-control", "description": "PLC-01",
-                           "admin_status": "up", "port_security_policy": "802.1X-mac-based", "uplink": False}
+                           "admin_status": "up", "port_security_policy": "802.1X-mac-based", "port_security_mode": "802.1x-mab", "uplink": False}
     assert by["port3"]["admin_status"] == "down" and by["port2"]["port_security_policy"] is None
     assert by["port4"]["mode"] == "trunk" and by["port4"]["vlan"] == "20,30,40,41"
     assert by["T1"]["uplink"] is True and by["T1"]["vlan"] == "1,20,30"

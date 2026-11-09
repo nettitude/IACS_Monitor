@@ -53,6 +53,16 @@ def nac_policies(parsed: dict) -> dict:
     return out
 
 
+def policy_mode(pol: Optional[dict]) -> Optional[str]:
+    """"open-auth" / "802.1x-mab" / "802.1x" for a parsed 802.1X policy, None when unknown
+    (owner 2026-11-09: open-auth admits unauthenticated devices, so such a port is unprotected)."""
+    if not isinstance(pol, dict):
+        return None
+    if pol.get("open_auth"):
+        return "open-auth"
+    return "802.1x-mab" if pol.get("mac_auth_bypass") else "802.1x"
+
+
 def ingest_fortilink_switches(db: DBSession, parsed: dict, fw_row, source_file: Optional[str]) -> dict:
     """Write the managed switches of ``parsed`` as switch rows of the firewall's
     site.  Everything this firewall's pass wrote before is replaced (switches that
@@ -125,10 +135,12 @@ def ingest_fortilink_switches(db: DBSession, parsed: dict, fw_row, source_file: 
             mode = "trunk" if (allowed or all_vlans or uplink) else "access"
             vlan_txt = ("all" if all_vlans else (",".join(str(x) for x in sorted({*([native_id] if native_id else []), *allowed})) or None)) \
                 if mode == "trunk" else (str(native_id) if native_id is not None else None)
+            sec_policy = _s(pc, "port-security-policy") or None
             row = SwitchInterface(site_id=sid, device_name=device, port_name=pname, vlan=vlan_txt,
                                   vlan_name=native if mode == "access" else None, mode=mode,
                                   description=_s(pc, "description") or None, source_file=source,
-                                  port_security_policy=_s(pc, "port-security-policy") or None,
+                                  port_security_policy=sec_policy,
+                                  port_security_mode=policy_mode(policies.get(sec_policy)) if sec_policy else None,
                                   admin_status=_s(pc, "status", "up") or "up", uplink=uplink)
             if fortilink and peer:
                 row.neighbor_device = fw_row.name or fw_row.device_name

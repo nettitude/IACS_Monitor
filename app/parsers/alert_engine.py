@@ -3299,12 +3299,13 @@ def _transient_vendor(vendor) -> bool:
 
 def review_switch_port_nac(db: DBSession) -> list:
     """
-    SR 1.2 / 2.5 — FortiLink-managed or standalone FortiSwitch access ports without a
-    port-security (802.1X) policy (owner 2026-10-19).  One finding per switch:
-    medium when such a port sits on a VLAN labelled L0-L2, low otherwise.
-    Uplinks, trunks and ports set down are left out.  A bound policy counts as
-    protection whatever its content (open-auth / MAC-auth-bypass are not read
-    from the stored rows).
+    SR 1.2 / 2.1 — FortiLink-managed or standalone FortiSwitch access ports without a
+    port-security (802.1X) policy, or with one whose open-auth setting admits
+    unauthenticated devices (owner 2026-11-09; before, any bound policy counted as
+    protection).  One finding per switch: medium when such a port sits on a VLAN
+    labelled L0-L2, low otherwise.  Uplinks, trunks and ports set down are left
+    out.  MAC authentication bypass alone is a policy (weak, but it authenticates)
+    and is listed as ``mab_ports`` for the reader.
     """
     rows = db.query(SwitchInterface).filter(or_(SwitchInterface.source_file.like("fortilink:%"),
                                                  SwitchInterface.source_file.like("fortiswitch:%")),
@@ -3313,23 +3314,40 @@ def review_switch_port_nac(db: DBSession) -> list:
         return []
     levels = {(v.device_name, str(v.vlan_id)): v.purdue_level for v in db.query(SwitchVlan)}
     by_sw: dict = {}
+    mab_by_sw: dict = {}
     for r in rows:
-        if str(r.admin_status or "up").lower() == "down" or r.port_security_policy:
+        if str(r.admin_status or "up").lower() == "down":
+            continue
+        mode = str(r.port_security_mode or "").lower()
+        if r.port_security_policy and mode != "open-auth":
+            if mode == "802.1x-mab":
+                mab_by_sw.setdefault(r.device_name, []).append(r.port_name)
             continue
         lvl = levels.get((r.device_name, str(r.vlan or "")))
         by_sw.setdefault(r.device_name, []).append({"port": r.port_name, "vlan": r.vlan, "purdue_level": lvl,
-                                                     "description": r.description})
+                                                     "description": r.description,
+                                                     "policy": r.port_security_policy, "mode": r.port_security_mode or None,
+                                                     "why": "open-auth: unauthenticated devices are admitted" if mode == "open-auth"
+                                                     else "no port-security policy"})
     alerts = []
     for sw, ports in sorted(by_sw.items(), key=lambda kv: str(kv[0])):
         ot = [p for p in ports if isinstance(p["purdue_level"], (int, float)) and p["purdue_level"] <= 2]
+        open_auth = [p["port"] for p in ports if p["mode"] == "open-auth"]
+        n_none = len(ports) - len(open_auth)
         sev = "medium" if ot else "low"
         alerts.append(_make_finding(
             db, "switch_port_no_nac",
-            f"FortiSwitch {sw}: {len(ports)} access port(s) without a port-security (802.1X) policy"
+            f"FortiSwitch {sw}: {len(ports)} access port(s) without effective port security"
+            + (f" ({n_none} no policy, {len(open_auth)} open-auth)" if open_auth else " (no 802.1X policy)")
             + (f", {len(ot)} on OT VLANs" if ot else ""),
-            f"{len(ports)} enabled access port(s) of FortiSwitch {sw} accept any device plugged in: no 802.1X / "
-            f"MAC-authentication policy is bound to them" + (f"; {len(ot)} of them sit on VLANs labelled L0-L2" if ot else ""),
+            f"{len(ports)} enabled access port(s) of FortiSwitch {sw} accept any device plugged in: "
+            + (f"{n_none} have no 802.1X / MAC-authentication policy and {len(open_auth)} have a policy with open-auth "
+               f"enabled, which admits devices that fail or skip authentication" if open_auth else
+               "no 802.1X / MAC-authentication policy is bound to them")
+            + (f"; {len(ot)} of them sit on VLANs labelled L0-L2" if ot else ""),
             {"switch_device": sw, "ports": ports[:60], "port_count": len(ports), "ot_ports": [p["port"] for p in ot][:60],
+             "open_auth_ports": open_auth[:60], "no_policy_ports": [p["port"] for p in ports if p["mode"] != "open-auth"][:60],
+             "mab_ports": sorted(mab_by_sw.get(sw, []))[:60],
              "first_port": ports[0]["port"],
              "reason": "port-based NAC is the control that keeps a transient laptop or an unknown device off the control "
                        "network at the port; without it the transient-device and unknown-device findings are the only line",

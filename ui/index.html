@@ -8155,7 +8155,7 @@ const AR_FLAG_HELP = {
   direction_unverified: 'No interface, zone or host behind this policy carries a Purdue level, so the firewall could not tell which way it applies: the row may show the reverse of the real direction. Label the firewall\'s interfaces to resolve it',
   permit_any: 'The rule allows any source, destination or service',
   nat_published: 'A firewall VIP (destination NAT / port forward) publishes the destination: the path is reached through the VIP\'s external address',
-  tunnel_selector: 'The row crosses an IPsec tunnel: its source / destination is bounded by the tunnel\'s selectors - the phase 2 remote subnets of a site-to-site tunnel, or the client pool and split-include networks of a dial-up tunnel (the policy text may be wider - see the policy scope)',
+  tunnel_selector: 'The row crosses an IPsec tunnel (or a zone made only of tunnel interfaces): its source / destination is bounded by the tunnel\'s selectors - the phase 2 remote subnets of a site-to-site tunnel, or the client pool and split-include networks of a dial-up tunnel (the policy text may be wider - see the policy scope)',
   source_nat: 'A firewall translates the source on the way: the destination (and any capture behind that firewall) sees the firewall\'s address, not who connected',
   cleartext_protocol: 'Cleartext protocol (FTP, Telnet, HTTP, SNMP v1/v2c, ...) across a zone boundary: credentials and data readable on the wire',
   mgmt_protocol: 'Management / remote-administration protocol (SSH, Telnet, RDP, VNC, SNMP, WinRM, ...) across a zone boundary',
