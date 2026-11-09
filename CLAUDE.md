@@ -18,8 +18,8 @@ and raises findings mapped to 62443-3-3 SRs, checklist rows, FR and SL. Multi-si
 
 ## Current state
 
-- Release **2026.10.09.36** (2026-10-19). Alembic head **`b4c5d6e7f8a9`**. **185 checks**. Full suite **2830 passed, 11 skipped**.
-- Full suite: **2844 passed, 11 skipped** (timing-budget tests can fail under load, pass alone) on the owner's Mac (7 skips need PostgreSQL server
+- Release **2026.10.09.38** (2026-11-09). Alembic head **`b4c5d6e7f8a9`**. **185 checks**. Full suite **2855 passed, 11 skipped** (one timing-budget test failed under load, passed alone).
+- Full suite: **2855 passed, 11 skipped** (timing-budget tests can fail under load, pass alone) on the owner's Mac (7 skips need PostgreSQL server
   binaries, 4 legacy-DB snapshots; the cloud had 1 skip). Flaky health test deselected, see Testing.
 - UI smoke: 21 sections in `ui_smoke_index.py` (19 ran 19/19 on .16; `nettopo`, `fwports` written 2026-10-16/17, not yet run - Playwright not installed; `lanematrix` removed 2026-10-18) and 7/7 (`ui_smoke_pages.py`).
 
@@ -139,10 +139,10 @@ Add a smoke check for every UI feature (sections in `ui_smoke_index.py`, e.g. `f
 
 ## Release routine (only when the owner asks)
 
-Version scheme `2026.10.09.N` (last: .36). From the parent directory of the repo:
+Version scheme `2026.10.09.N` (last: .38). From the parent directory of the repo:
 
 ```bash
-V=2026.10.09.37
+V=2026.10.09.39
 tar czf iasc_monitor-$V-full.tar.gz \
   --exclude='iasc_monitor/iasc_monitor.db*' --exclude='iasc_monitor/*.db' \
   --exclude='iasc_monitor/iasc_scheduler.lock' --exclude='iasc_monitor/*.pdf' \
@@ -457,7 +457,7 @@ pytest. `docker-compose.yml`, `build.sh` and docs/docker-install.md already use 
   roll-up cover / no TOC placeholder, no blank page before 4 Findings, `_RENDER_LOCK` around `render_pdf`, wrapped
   FortiOS blocks, quoted-vs-plain multi-interface values, per-site numbering in the roll-up (`num` / `analysis_num`).
 
-## Since .35 (all shipped in .36, 2026-10-19)
+## Since .35 (shipped in .36 and, with the audit fixes, .37 - 2026-10-19)
 
 - `config_auto_firmware_upgrade` (owner 2026-10-19: "Judge auto-firmware-upgrade: enable on an OT firewall is a
   change-control concern"): low, SR 7.6 + 2-1 SPE 2, row 9.12; fires only on an explicit `set auto-firmware-upgrade
@@ -519,7 +519,7 @@ pytest. `docker-compose.yml`, `build.sh` and docs/docker-install.md already use 
   `source_places`). `_saml_idps(parsed)`: FortiTrust ID (`fortitrustid.forticloud.com`) = cloud MFA in the
   user-group evidence, the new "SAML identity providers" row and the VPN MFA finding's `remote_sources`.
 
-## Since .37 (2026-10-24)
+## In .38 (2026-10-24 .. 2026-11-09)
 
 - Audit checklist report (owner 2026-10-24, "a program that takes the ISA62443_master_audit_check_list.xlsx file as an import
   and creates a report ... CSV export besides a pdf"): `app/audit_checklist.py` (`parse_workbook`, `is_finding`, `select_rows`

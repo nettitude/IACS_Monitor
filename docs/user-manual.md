@@ -2,7 +2,7 @@
 
 A task-by-task guide for the operator. The README is the reference (every route, input format,
 environment variable and check); this manual tells you what to do, in what order, and what each
-page is for. Version 2026.10.09.37.
+page is for. Version 2026.10.09.38.
 
 ## Contents
 

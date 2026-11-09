@@ -67,7 +67,7 @@ COPY --chown=iasc:iasc app/ ./app/
 COPY --chown=iasc:iasc ui/ ./ui/
 COPY --chown=iasc:iasc sample_data/ ./sample_data/
 COPY --chown=iasc:iasc alembic/ ./alembic/
-COPY --chown=iasc:iasc alembic.ini generate_report.py backup_db.py requirements-lock.txt ./
+COPY --chown=iasc:iasc alembic.ini generate_report.py generate_audit_report.py backup_db.py requirements-lock.txt ./
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # /data holds the SQLite database (+ WAL), the scheduler lock, upload spool
