@@ -157,6 +157,7 @@ listed here but gone), and when a test named here does not exist.
     POST    /site-devices/conflicts/resolve          test_site_device_conflict_routes
     GET     /site-devices/conflicts/resolutions      test_site_device_conflict_routes
     GET     /reports/compliance.pdf                  test_compliance_pdf
+    POST    /reports/audit-checklist                 test_audit_checklist
     GET     /ui/attestation                          test_ui_pages
     GET     /ui/topology                             test_ui_pages
     GET     /ui/fw-topology                          test_ui_pages
@@ -569,6 +570,12 @@ def test_report_check_selection(tmp_path, monkeypatch):
     with trc.api_ctx(tmp_path, monkeypatch) as x:
         trc.test_selection_lists_every_check(x)
         trc.test_exclude_group_with_reason_per_site_and_put_back(x)
+
+
+def test_audit_checklist(tmp_path, monkeypatch):
+    import tests.test_audit_checklist as tac
+    with tac.api_ctx(tmp_path, monkeypatch) as x:
+        tac.test_route_formats_and_details(x)
 
 
 def test_findings_workbook(tmp_path, monkeypatch):

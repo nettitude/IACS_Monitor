@@ -2506,10 +2506,65 @@ class Smoke:
                    "[system] client POCs / assessor sides not stored")
         self.check(page.evaluate("() => window.__xss") is None, "[system] XSS payload executed in the report details form")
 
+    def audit_checklist(self, page, req):
+        """Owner 2026-10-24: the Master Audit Checklist workbook -> preview / PDF / CSV on the Reports page."""
+        import io as _io
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Master Checklist"
+        ws.append(["#", "Master ID", "Domain", "Check title", "Audit check (paraphrased)", "Suggested evidence", "Covers (source Req IDs)",
+                   "Source standards", "NIST firewall reference", "FR", "Min SL", "Audit scope", "Conditional", "Status", "Maturity Level",
+                   "Finding / Observation", "Evidence Reviewed", "Severity", "Recommendation", "Owner", "Target Date"])
+        ws.append([1, "GOV-01", "Governance, program & policy", "Security program <img src=x onerror=window.__xss=1>", "Is there a program?", "SP document",
+                   "ORG 1.1", "2-1", None, "Program", 1, None, "No", "Non-compliant", 1, "No program <script>window.__xss=1</script>", "Interview",
+                   "High", "Write one.", "CISO", "2027-01-31"])
+        ws.append([2, "GOV-02", "Governance, program & policy", "Program scope", "Is the scope defined?", "Scope statement", "1-1 §1", "1-1", None,
+                   "Program", 1, None, "No", "Compliant", 3, None, None, None, None, None, None])
+        buf = _io.BytesIO()
+        wb.save(buf)
+        page.locator("[data-testid=ac-file]").set_input_files({"name": "smoke_checklist.xlsx", "buffer": buf.getvalue(),
+                                                               "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})
+        with page.expect_response(lambda r: "/reports/audit-checklist" in r.url and "format=json" in r.url):
+            page.locator("[data-testid=ac-check]").click()
+        page.wait_for_selector("[data-testid=ac-summary]", timeout=15000)
+        summary = page.locator("[data-testid=ac-summary]").inner_text()
+        self.check("2 check(s)" in summary and "1 finding(s)" in summary, f"[system] audit checklist preview wrong: {summary!r}")
+        self.check(page.locator("[data-testid=ac-item]").count() == 1, "[system] audit checklist preview should list one finding")
+        self.check("Security program <img" in page.locator("[data-testid=ac-item]").first.inner_text(), "[system] audit checklist title not shown as text")
+        page.locator("[data-testid=ac-scope]").select_option("all")
+        with page.expect_download(timeout=30000) as dl:
+            page.locator("[data-testid=ac-csv]").click()
+        body = open(dl.value.path(), "rb").read().decode("utf-8")
+        self.check(body.startswith("\ufeffSection,Master ID") and body.count("\r\n") == 3, "[system] audit checklist CSV wrong")
+        page.locator("[data-testid=ac-client]").fill("Smoke Audit Client")
+        page.locator("[data-testid=ac-author]").fill("Smoke Author")
+        page.locator("[data-testid=ac-date]").fill("2026-10-24")
+        page.locator("[data-testid=ac-poc-add]").click()
+        page.locator("[data-testid=ac-poc-row]").last.locator("[data-field=name]").fill("Smoke POC One")
+        page.locator("[data-testid=ac-poc-add]").click()
+        page.locator("[data-testid=ac-poc-row]").last.locator("[data-field=name]").fill("Smoke POC Two")
+        page.locator("[data-testid=ac-lrqa-add]").click()
+        page.locator("[data-testid=ac-dist-row]").last.locator("[data-field=name]").fill("Smoke Consultant")
+        with page.expect_download(timeout=60000) as dl:
+            page.locator("[data-testid=ac-pdf]").click()
+        pdf = open(dl.value.path(), "rb").read()
+        self.check(pdf[:5] == b"%PDF-" and dl.value.suggested_filename.endswith(".pdf"), "[system] audit checklist PDF not downloaded")
+        try:
+            import pypdf
+            text = "\n".join(p.extract_text() or "" for p in pypdf.PdfReader(_io.BytesIO(pdf)).pages)
+            self.check(all(x in text for x in ("Smoke Audit Client", "Smoke Author", "2026-10-24", "Smoke POC One", "Smoke POC Two", "Smoke Consultant", "LRQA consultants")),
+                       "[system] audit checklist PDF lacks the cover / distribution details typed on the card")
+        except ImportError:
+            pass
+        page.wait_for_selector("[data-testid=ac-done]", timeout=10000)
+        self.check(page.evaluate("() => window.__xss") is None, "[system] XSS payload executed in the audit checklist preview")
+
     def s_system(self, page, req):
         """F-02 report link, F-17 diagnostics, review run on the System page."""
         self.report_checks(page, req)
         self.report_details(page, req)
+        self.audit_checklist(page, req)
         a = page.locator("#rep-download")
         href = a.get_attribute("href")
         u = urllib.parse.urlparse(href)

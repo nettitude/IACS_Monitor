@@ -8636,6 +8636,83 @@ async def compliance_report_pdf(
                  "Content-Length": str(len(pdf))})
 
 
+def _audit_report_module():
+    """generate_audit_report.py lives at the project root (next to generate_report.py)."""
+    try:
+        import generate_audit_report as mod
+    except ImportError:
+        import importlib.util
+        path = Path(__file__).resolve().parent.parent.parent / "generate_audit_report.py"
+        spec = importlib.util.spec_from_file_location("generate_audit_report", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    return mod
+
+
+@router.post("/reports/audit-checklist")
+async def audit_checklist_report(
+    format: str = Query("pdf", pattern="^(pdf|csv|json)$", description=(
+        "pdf (default): the audit report in the LRQA layout; csv: one line per finding; json: the preview "
+        "(counts per status / severity / domain, the finding list, workbook notes)")),
+    scope: str = Query("findings", pattern="^(findings|assessed|all)$", description=(
+        "findings (default): checks rated Non-compliant / Partially compliant plus checks with a recorded finding, "
+        "severity or recommendation not rated Compliant / Not applicable; assessed: every status but Not assessed; "
+        "all: every check")),
+    order: str = Query("severity", pattern="^(severity|checklist)$", description=(
+        "analysis order: severity (High, Medium, Low, unrated; then checklist order) or checklist (row order)")),
+    site: str | None = Query(None, max_length=128, description=(
+        "site whose Report details fill the cover, distribution list, revision history and constraints (optional)")),
+    site_id: int | None = Query(None, ge=1, description="site of the Report details (id, optional)"),
+    file: UploadFile = File(...),
+    details: str | None = Form(None, max_length=60000, description=(
+        "JSON with the report details given for this report, overriding the site's stored ones: client_name (Prepared for), "
+        "author, author_email, report_date (YYYY-MM-DD), project_name, version, classification, constraints, "
+        "pocs ([{name, role, email}] - the client's points of contact, any number), consultants ([{name, role, email}] - the "
+        "LRQA consultants, any number), or distribution ([{name, role, email, side: client | assessor}]), revisions")),
+    db: DBSession = Depends(get_db),
+):
+    """Owner 2026-10-24: the ISA/IEC 62443 audit report from a filled-in Master Audit
+    Checklist workbook (``ISA62443_Master_Audit_Checklist.xlsx``, sheet *Master Checklist*).
+    One report finding per checklist row: the Check title is the title, the Audit check the
+    details, with the Domain and the auditor's Finding / Observation, Evidence Reviewed,
+    Severity, Recommendation, Owner and Target Date.  Nothing is stored; the upload is read
+    once.  Same output as ``python generate_audit_report.py``."""
+    import io as _io
+    from app import audit_checklist as ac
+    site_details = None
+    if site not in (None, "") or site_id is not None:
+        from app.models import ReportDetails
+        site_row = _operation_site(db, site, site_id)
+        row = db.query(ReportDetails).filter(ReportDetails.site_id == site_row.id).one_or_none()
+        site_details = _report_details_dict(row, site_row)
+    given = None
+    if details is not None and details.strip():
+        try:
+            raw = json.loads(details)
+        except ValueError:
+            raw = None
+        if not isinstance(raw, dict):
+            raise HTTPException(status_code=422, detail="details must be a JSON object")
+        given = ac.clean_details(raw)
+    details = ac.merge_details(site_details, given)
+    data = await _read_limited(file, _MAX_TEXT_BYTES, "checklist")
+    try:
+        parsed = ac.parse_workbook(data)
+    except ac.ChecklistError as exc:
+        raise HTTPException(status_code=422, detail=f"not a master audit checklist: {exc}")
+    name = Path(file.filename or "").name[:120] or None
+    if format == "json":
+        return {"filename": file.filename, **ac.summary_json(ac.report_data(parsed, scope, order, details=details, source_name=name))}
+    mod = _audit_report_module()
+    body = await run_in_threadpool(mod.report_bytes, parsed, format, scope=scope, order=order, details=details, source_name=name)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
+    media = "application/pdf" if format == "pdf" else "text/csv; charset=utf-8"
+    return StreamingResponse(
+        _io.BytesIO(body), media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="iasc_audit_{stamp}.{format}"',
+                 "Content-Length": str(len(body))})
+
+
 # ====================================================== STATIC UI PAGES ==
 
 _UI_DIR = Path(__file__).resolve().parent.parent.parent / "ui"

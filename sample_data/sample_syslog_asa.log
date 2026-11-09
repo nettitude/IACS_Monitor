@@ -1,0 +1,21 @@
+# Cisco ASA / FTD syslog sample (RFC3164 with ASA "host :" header, RFC5424, bare)
+<166>Sep 30 2026 12:00:01 asa-fw01 : %ASA-6-106100: access-list outside_access_in permitted tcp outside/203.0.113.5(51234) -> inside/10.10.1.20(502) hit-cnt 1 first hit [0x1a2b3c4d, 0x0]
+<166>Sep 30 2026 12:00:01 asa-fw01 : %ASA-6-106100: access-list inside_access_in denied icmp inside/10.10.1.20(8) -> outside/8.8.8.8(0) hit-cnt 3 300-second interval [0x5e6f7a8b, 0x0]
+<164>Sep 30 2026 12:00:02 asa-fw01 : %ASA-4-106023: Deny tcp src outside:198.51.100.7/40000 dst inside:10.10.1.20/22 by access-group "outside_access_in" [0x0, 0x0]
+<164>Sep 30 2026 12:00:02 asa-fw01 : %ASA-4-106023: Deny icmp src outside:198.51.100.7 dst inside:10.10.1.20 (type 8, code 0) by access-group "outside_access_in" [0x0, 0x0]
+<162>Sep 30 2026 12:00:02 asa-fw01 : %ASA-2-106001: Inbound TCP connection denied from 198.51.100.7/40001 to 10.10.1.20/80 flags SYN  on interface outside
+<162>Sep 30 2026 12:00:02 asa-fw01 : %ASA-2-106006: Deny inbound UDP from 198.51.100.7/5353 to 10.10.1.20/161 on interface outside
+<166>Sep 30 2026 12:00:02 asa-fw01 : %ASA-6-106015: Deny TCP (no connection) from 10.10.1.20/443 to 198.51.100.7/40002 flags RST  on interface inside
+<166>Sep 30 2026 12:00:03 asa-fw01 : %ASA-6-302013: Built outbound TCP connection 9001 for outside:93.184.216.34/443 (93.184.216.34/443) to inside:10.10.1.20/52811 (203.0.113.10/52811)
+<166>1 2026-09-30T12:00:03Z asa-fw01 - - - - %ASA-6-302015: Built inbound UDP connection 9002 for outside:198.51.100.9/53 (198.51.100.9/53) to inside:10.10.1.20/53 (203.0.113.20/53)
+<166>Sep 30 2026 12:01:08 asa-fw01 : %ASA-6-302014: Teardown TCP connection 9001 for outside:93.184.216.34/443 to inside:10.10.1.20/52811 duration 0:01:05 bytes 51234 TCP FINs from inside
+<166>Sep 30 2026 12:02:04 asa-fw01 : %FTD-6-302016: Teardown UDP connection 9002 for outside:198.51.100.9/53 to inside:10.10.1.20/53 duration 0:02:01 bytes 120
+<166>Sep 30 2026 12:03:00 asa-fw01 : %ASA-6-113004: AAA user authentication Successful : server = 10.0.0.2 : user = jdoe
+<166>Sep 30 2026 12:03:01 asa-fw01 : %ASA-6-113005: AAA user authentication Rejected : reason = AAA failure : server = 10.0.0.2 : user = jdoe : user IP = 10.20.1.9
+<166>Sep 30 2026 12:03:02 asa-fw01 : %ASA-6-611101: User authentication succeeded: IP address: 10.20.1.9, Uname: admin
+<166>Sep 30 2026 12:03:03 asa-fw01 : %ASA-6-605004: Login denied from 10.20.1.9/51000 to inside:10.0.0.1/ssh for user "admin"
+<166>Sep 30 2026 12:03:04 asa-fw01 : %ASA-6-605005: Login permitted from 10.20.1.5/51001 to inside:10.0.0.1/https for user "admin"
+<165>Sep 30 2026 12:04:00 asa-fw01 : %ASA-5-111008: User 'admin' executed the 'access-list outside_access_in extended permit tcp any host 10.10.1.20 eq 502' command.
+<165>Sep 30 2026 12:04:01 asa-fw01 : %ASA-5-111010: User 'admin', running 'CLI' from IP 10.20.1.5, executed 'write memory'
+<164>Sep 30 2026 12:05:00 asa-fw01 : %ASA-4-733100: [ Scanning] drop rate-1 exceeded. Current burst rate is 10 per second, max configured rate is 10; Current average rate is 5 per second, max configured rate is 5; Cumulative total count is 3000
+<164>Sep 30 2026 12:05:01 asa-fw01 : %ASA-4-733101: Host 198.51.100.7 is attacking. Current burst rate is 200 per second, max configured rate is 100; Current average rate is 50 per second, max configured rate is 25; Cumulative total count is 30000

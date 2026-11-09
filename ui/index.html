@@ -1851,6 +1851,42 @@ a.btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
           </div>
           <div id="wb-result" role="status" data-testid="wb-result"></div>
         </div>
+        <div class="sys-card" id="audit-card" data-testid="audit-checklist">
+          <h3>Audit checklist report (xlsx &rarr; PDF / CSV)</h3>
+          <p class="hint">Upload the filled-in <strong>ISA/IEC 62443 Master Audit Checklist</strong> workbook (sheet <span class="mono">Master Checklist</span>; the yellow columns Status, Maturity Level, Finding / Observation, Evidence Reviewed, Severity, Recommendation, Owner, Target Date). Each checklist row becomes one report finding: the check title is the finding's title, the audit check its details, with the domain and your observation, evidence and recommendation as written. The PDF uses the LRQA report layout and this site's <em>Report details</em>; the CSV holds the same findings, one line each. Nothing is stored.</p>
+          <div class="zc-form">
+            <input type="file" id="ac-file" accept=".xlsx" aria-label="Master audit checklist workbook" data-testid="ac-file">
+            <label class="ctrl-label" for="ac-scope">Findings</label>
+            <select id="ac-scope" data-testid="ac-scope" title="Which checklist rows become report findings">
+              <option value="findings">Non-compliant, partially compliant and recorded findings</option>
+              <option value="assessed">Every assessed check</option>
+              <option value="all">Every check</option>
+            </select>
+            <label class="ctrl-label" for="ac-order">Order</label>
+            <select id="ac-order" data-testid="ac-order"><option value="severity">Severity, then checklist</option><option value="checklist">Checklist order</option></select>
+          </div>
+          <div class="zc-form" style="margin-top:8px">
+            <label class="form-label" for="ac-client" style="flex-basis:100%;margin:0">Prepared for (client)</label>
+            <input type="text" id="ac-client" maxlength="200" data-testid="ac-client" placeholder="from Report details" style="flex:1 1 100%">
+            <label class="form-label" for="ac-author" style="flex-basis:100%;margin:6px 0 0">Author</label>
+            <input type="text" id="ac-author" maxlength="128" data-testid="ac-author" placeholder="IACS_Monitor" style="flex:1 1 100%">
+            <label class="form-label" for="ac-date" style="flex-basis:100%;margin:6px 0 0">Date of the report</label>
+            <input type="date" id="ac-date" data-testid="ac-date">
+          </div>
+          <label class="form-label">Client points of contact (Distribution List) - any number</label>
+          <div id="ac-poc" data-testid="ac-poc"></div>
+          <button type="button" class="small" id="ac-poc-add" data-testid="ac-poc-add">+ Client POC</button>
+          <label class="form-label" style="margin-top:10px">LRQA consultants - any number</label>
+          <div id="ac-lrqa" data-testid="ac-lrqa"></div>
+          <button type="button" class="small" id="ac-lrqa-add" data-testid="ac-lrqa-add">+ LRQA consultant</button>
+          <div class="hint" style="margin-top:6px">Pre-filled from this site's <em>Report details</em> when they are set; what you enter here is used for this report only (nothing is saved).</div>
+          <div class="zc-form" style="margin-top:8px">
+            <button type="button" class="small" id="ac-check" data-testid="ac-check">Check workbook</button>
+            <button type="button" class="primary small" id="ac-pdf" data-testid="ac-pdf">Download report (PDF)</button>
+            <button type="button" class="small" id="ac-csv" data-testid="ac-csv">Download findings (CSV)</button>
+          </div>
+          <div id="ac-result" role="status" data-testid="ac-result"></div>
+        </div>
         <div class="sys-card" id="diag-card" data-testid="diagnostics">
           <h3>Findings-engine diagnostics</h3>
           <p class="hint">From <span class="mono">GET /diagnostics</span>, for this server process.</p>
@@ -9040,13 +9076,13 @@ async function loadSystem() {
 // ---------- Report details (owner 2026-10-18): cover, distribution list, revision history ----------
 /** kind: 'poc' (client points of contact), 'dist' (assessor team), 'revs' (revision history). */
 const RD_MAX_ROWS = 50;          // the server keeps at most 50 rows per list (audit 2026-10-18)
-function rdRow(box, kind, v) {
+function rdRow(box, kind, v, prefix = 'rd') {      // prefix: the data-testid namespace (the audit checklist card uses 'ac')
   if (box.querySelectorAll('.rd-row').length >= RD_MAX_ROWS) { setMsg($('rd-msg'), `At most ${RD_MAX_ROWS} rows per list.`, 'err'); return; }
   v = v || {};
   const fields = kind === 'revs'
     ? [['version', 'Version', 32], ['date', 'Issue date', 40], ['status', 'Status', 80]]
     : [['name', 'Name', 120], ['role', 'Role', 80], ['email', 'Email', 200]];
-  const row = el('div', { class: 'rd-row', 'data-testid': 'rd-' + kind + '-row', style: 'display:flex;gap:6px;align-items:center;margin:4px 0;flex-wrap:wrap' });
+  const row = el('div', { class: 'rd-row', 'data-testid': prefix + '-' + kind + '-row', style: 'display:flex;gap:6px;align-items:center;margin:4px 0;flex-wrap:wrap' });
   for (const [k, ph, max] of fields) row.append(el('input', { type: 'text', placeholder: ph, maxlength: String(max), value: v[k] || '', dataset: { field: k }, style: 'flex:1;min-width:90px' }));
   row.append(el('button', { type: 'button', class: 'small', text: '×', title: 'Remove', 'aria-label': 'Remove this row', onclick: () => row.remove() }));
   box.append(row);
@@ -9080,6 +9116,7 @@ async function loadReportDetails() {
     const poc = clear($('rd-poc')), dist = clear($('rd-dist')), revs = clear($('rd-revs'));
     (d.distribution || []).forEach(x => rdRow(x.side === 'assessor' ? dist : poc, x.side === 'assessor' ? 'dist' : 'poc', x));
     (d.revisions || []).forEach(x => rdRow(revs, 'revs', x));
+    acPrefill(d);
     setMsg($('rd-msg'), d.stored ? `Saved${d.updated_by ? ' by ' + d.updated_by : ''}${d.updated_at ? ' on ' + String(d.updated_at).slice(0, 10) : ''}.` : 'Not set yet - the report uses the site name and defaults.', '');
   } catch (e) { if (!g.stale()) setMsg($('rd-msg'), 'Could not load: ' + e.message, 'err'); }
 }
@@ -9148,6 +9185,77 @@ $('wb-apply').addEventListener('click', () => { if (wbPreviewFile && $('wb-file'
 $('wb-file').addEventListener('change', () => { $('wb-apply').disabled = true; clear($('wb-result')); });
 ['wb-closed', 'wb-excluded'].forEach(id => $(id).addEventListener('change', updateWorkbookLink));
 try { $('wb-name').value = localStorage.getItem('iasc_ack_by') || ''; } catch (e) { /* storage blocked */ }
+// ---------- Audit checklist report (owner 2026-10-24): POST /reports/audit-checklist, the workbook -> PDF / CSV / preview ----------
+function renderAuditPreview(box, r) {
+  clear(box);
+  const sev = r.by_severity || {}, st = r.by_status || {};
+  box.append(el('div', { class: 'small', 'data-testid': 'ac-summary', text:
+    `${r.checklist || 'Checklist'}: ${r.rows} check(s), ${r.assessed} assessed, ${r.findings} finding(s); ${r.selected} in the report ` +
+    `(${['critical', 'high', 'medium', 'low', 'unrated'].filter(k => sev[k]).map(k => `${sev[k]} ${k}`).join(', ') || 'no severity'}). ` +
+    `Status: ${['Compliant', 'Partially compliant', 'Non-compliant', 'Not applicable', 'Not assessed'].map(k => `${k} ${st[k] || 0}`).join(' · ')}.` }));
+  if (r.warnings && r.warnings.length) box.append(el('div', { class: 'zc-note', 'data-testid': 'ac-warnings' }, 'Workbook notes: ', el('ul', {}, r.warnings.slice(0, 20).map(w => el('li', { text: w })))));
+  if (r.items && r.items.length) {
+    const tb = el('tbody');
+    r.items.slice(0, 300).forEach(it => tb.append(el('tr', { 'data-testid': 'ac-item' },
+      el('td', { class: 'mono small', text: it.section || '' }), el('td', { class: 'mono small', text: it.master_id || '' }),
+      el('td', { class: 'small', text: it.title || '' }), el('td', { class: 'small', text: it.domain || '' }),
+      el('td', { class: 'small', text: it.status || '' }),
+      el('td', {}, it.severity ? el('span', { class: 'lf-badge sev-' + oneOf(it.severity, SEV_ORDER, 'info'), text: it.severity }) : el('span', { class: 'muted small', text: '—' })),
+      el('td', { class: 'small muted', text: [it.has_observation ? 'observation' : '', it.has_evidence ? 'evidence' : '', it.has_recommendation ? 'recommendation' : ''].filter(Boolean).join(', ') || 'nothing recorded' }))));
+    box.append(el('div', { class: 'zn-wrap' }, el('table', { class: 'zn-table' }, el('thead', {}, el('tr', {}, ['Section', 'ID', 'Title', 'Domain', 'Status', 'Severity', 'Auditor entries'].map(h => el('th', { text: h })))), tb)),
+      r.items.length > 300 || r.truncated ? el('div', { class: 'muted small', text: `… ${(r.items.length - 300 > 0 ? r.items.length - 300 : 0) + (r.truncated || 0)} more` }) : null);
+  } else {
+    box.append(el('div', { class: 'muted small', text: 'No checklist row is a finding under this selection.' }));
+  }
+}
+/** Name / role / email rows of a people box (the same row widget as the Report details card). */
+function acRows(box) {
+  return [...box.querySelectorAll('.rd-row')].map(r => { const o = {}; r.querySelectorAll('[data-field]').forEach(i => { o[i.dataset.field] = i.value.trim(); }); return o; })
+    .filter(o => Object.values(o).some(x => x));
+}
+/** Fill the card's empty fields from the site's Report details (loadReportDetails); typed values are kept. */
+function acPrefill(d) {
+  if (!$('ac-client').value) $('ac-client').value = (d && d.client_name) || '';
+  if (!$('ac-author').value) $('ac-author').value = (d && d.author) || '';
+  if (!$('ac-date').value) $('ac-date').value = todayLocal();
+  const poc = $('ac-poc'), lrqa = $('ac-lrqa');
+  if (!poc.querySelector('.rd-row')) ((d && d.distribution) || []).filter(x => x.side !== 'assessor').forEach(x => rdRow(poc, 'poc', x, 'ac'));
+  if (!lrqa.querySelector('.rd-row')) ((d && d.distribution) || []).filter(x => x.side === 'assessor').forEach(x => rdRow(lrqa, 'dist', x, 'ac'));
+}
+function acDetails() {
+  return { client_name: $('ac-client').value.trim() || null, author: $('ac-author').value.trim() || null, report_date: $('ac-date').value || null,
+    pocs: acRows($('ac-poc')), consultants: acRows($('ac-lrqa')) };
+}
+async function auditChecklist(format) {
+  const f = $('ac-file').files[0], box = clear($('ac-result'));
+  if (!f) { box.append(el('div', { class: 'err-text small', text: 'Choose the filled-in Master Audit Checklist workbook (.xlsx).' })); return; }
+  const btns = ['ac-check', 'ac-pdf', 'ac-csv'].map(id => $(id));
+  btns.forEach(b => { b.disabled = true; });
+  box.append(el('div', { class: 'muted small', text: format === 'json' ? 'Reading the workbook…' : `Building the ${format.toUpperCase()}…` }));
+  const fd = new FormData(); fd.append('file', f, f.name); fd.append('details', JSON.stringify(acDetails()));
+  const path = '/reports/audit-checklist' + qs({ format, scope: $('ac-scope').value, order: $('ac-order').value, site_id: CURRENT_SITE || '' });
+  try {
+    if (format === 'json') {
+      renderAuditPreview(box, await api(path, { method: 'POST', body: fd }));
+    } else {
+      const resp = await fetch(getApi() + path, { method: 'POST', body: fd });
+      if (!resp.ok) { let d = ''; try { d = fmtDetail(await resp.json()); } catch (e) { /* no JSON body */ } throw new Error(`HTTP ${resp.status}${d ? ': ' + d : ''}`); }
+      const url = URL.createObjectURL(await resp.blob());
+      const a = el('a', { href: url, download: `iasc_audit_${todayLocal()}.${format}` });
+      document.body.append(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      clear(box).append(el('div', { class: 'small', 'data-testid': 'ac-done', text: `${format.toUpperCase()} downloaded (${f.name}).` }));
+    }
+  } catch (e) { clear(box).append(el('div', { class: 'err-text small', text: 'Failed: ' + e.message })); }
+  finally { btns.forEach(b => { b.disabled = false; }); }
+}
+$('ac-check').addEventListener('click', () => auditChecklist('json'));
+$('ac-pdf').addEventListener('click', () => auditChecklist('pdf'));
+$('ac-csv').addEventListener('click', () => auditChecklist('csv'));
+$('ac-file').addEventListener('change', () => clear($('ac-result')));
+$('ac-poc-add').addEventListener('click', () => rdRow($('ac-poc'), 'poc', null, 'ac'));
+$('ac-lrqa-add').addEventListener('click', () => rdRow($('ac-lrqa'), 'dist', null, 'ac'));
+acPrefill(null);
 // ---------- Checks in the report (owner 2026-10-14) ----------
 // GET / PUT /reports/check-selection?site_id=: per-site checks left out of the PDF.
 let rcData = null;

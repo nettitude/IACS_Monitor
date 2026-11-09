@@ -73,6 +73,7 @@ app/parsers/chain_findings.py   chain_* / path_* / dead_end findings from access
 app/parsers/pcap_parser.py      PCAP ingest (reassembly, SPAN dedupe, capture point)
 app/parsers/device_classification.py, subnet_zones.py   host Purdue classification
 generate_report.py       PDF report
+generate_audit_report.py Audit report (PDF + CSV) from the Master Audit Checklist workbook; app/audit_checklist.py reads it
 ui/index.html            console (vanilla JS, el() DOM builder, textContent only)
 alembic/versions/        50 migrations, all idempotent (alembic/iasc_migration_utils.py)
 tests/                   pytest suite + Playwright smoke (ui_*.py, not collected)
@@ -517,6 +518,25 @@ pytest. `docker-compose.yml`, `build.sh` and docs/docker-install.md already use 
   pools, SSL-VPN pools). Used by `config_local_in_permits_all` (`remote_sources`, `unplaced_sources`,
   `source_places`). `_saml_idps(parsed)`: FortiTrust ID (`fortitrustid.forticloud.com`) = cloud MFA in the
   user-group evidence, the new "SAML identity providers" row and the VPN MFA finding's `remote_sources`.
+
+## Since .37 (2026-10-24)
+
+- Audit checklist report (owner 2026-10-24, "a program that takes the ISA62443_master_audit_check_list.xlsx file as an import
+  and creates a report ... CSV export besides a pdf"): `app/audit_checklist.py` (`parse_workbook`, `is_finding`, `select_rows`
+  scope findings / assessed / all, `order_rows`, `domain_summary`, `report_data`, `to_csv`, `summary_json`),
+  `generate_audit_report.py` (LRQA layout via `generate_report` helpers; `_draw_cover` takes `title_lines`), route
+  `POST /reports/audit-checklist` (`format` pdf / csv / json, `scope`, `order`, optional `site_id` -> Report details on the
+  cover), Reports page card *Audit checklist report* (`auditChecklist`, `renderAuditPreview`; smoke `audit_checklist`).
+  One report finding per checklist row: Check title = title, Audit check = details, Domain, the auditor's Finding /
+  Observation, Evidence Reviewed, Recommendation (+ status, maturity, severity, owner, target date). Nothing stored.
+  Tests `tests/test_audit_checklist.py`. The owner's workbook lives in `../Checklist/` (not in the repo).
+  Second ask (same day, "the program needs to ask for client POC ... LRQA consultant ... author ... Prepared for ... date of
+  report"): CLI `prompt_details` (TTY prompts; flags `--client --author --date --poc --consultant --no-prompt`), route form field
+  `details` (JSON; `clean_details` / `merge_details` over the site's Report details), card fields Prepared for / Author / Date /
+  Client POC rows / LRQA consultant rows (`acPrefill`, `acDetails`; `rdRow(..., prefix)`), report `build_distribution`
+  ("LRQA consultants") / `build_revisions`, `report_date` on the cover.
+  2026-10-25: `ui/lrqa_logo.png` (owner's LRQA logo) on the audit report cover (`_draw_cover` `logo`; `generate_audit_report.LOGO`);
+  `make-dist.sh` ships `generate_audit_report.py`.
 
 ## Open / not started (owner hasn't asked)
 

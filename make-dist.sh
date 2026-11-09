@@ -95,7 +95,7 @@ info "Staging to ${STAGING_DIR} …"
 # ─── files to include ────────────────────────────────────────────────────────
 # Explicit allowlist keeps the tarball clean regardless of what lives in the repo
 INCLUDE_DIRS=(app ui alembic docs sample_data)
-INCLUDE_FILES=(requirements.txt requirements-dev.txt requirements-lock.txt requirements-dev-lock.txt alembic.ini install.sh make-dist.sh generate_report.py backup_db.py)
+INCLUDE_FILES=(requirements.txt requirements-dev.txt requirements-lock.txt requirements-dev-lock.txt alembic.ini install.sh make-dist.sh generate_report.py generate_audit_report.py backup_db.py)
 # Include README if present
 [[ -f "${SCRIPT_DIR}/README.md" ]] && INCLUDE_FILES+=(README.md)
 [[ -f "${SCRIPT_DIR}/VERSION"   ]] && INCLUDE_FILES+=(VERSION)

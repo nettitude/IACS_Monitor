@@ -405,6 +405,24 @@ changes* and *Apply*: each changed row goes through the same rules as the Findin
 are listed per row, and importing the same file twice changes nothing. Use it for a review round
 with people who do not use the console.
 
+**Audit checklist report (xlsx → PDF / CSV).** For the audit you run by hand against the ISA/IEC
+62443 Master Audit Checklist workbook: fill the yellow columns in Excel (Status, Maturity Level,
+Finding / Observation, Evidence Reviewed, Severity, Recommendation, Owner, Target Date), upload the
+workbook on this card, fill in **Prepared for**, the **Author**, the **Date of the report**, the
+**Client points of contact** and the **LRQA consultants** (add as many rows as needed; the card is
+pre-filled from *Report details* and nothing you type here is saved), *Check workbook* to see the
+counts and the finding list (and notes such as a finding without a status), then *Download report
+(PDF)* or *Download findings (CSV)*. The command line `python generate_audit_report.py CHECKLIST.xlsx`
+asks the same questions on the terminal (or takes `--client`, `--author`, `--date`, `--poc`,
+`--consultant`; `--no-prompt` skips the questions). Each checklist
+row becomes one report finding: the check title is its title, the audit check its details, the domain
+its area, and your observation, evidence and recommendation are printed as written, with the status,
+maturity, severity, owner and target date. The PDF has the same front pages as the compliance report
+(cover, distribution list, revision history from *Report details*), a compliance-by-domain table, one
+analysis page per finding and an appendix with every check's status. *Findings* chooses which rows
+are reported (non-compliant / partially compliant and recorded findings; every assessed check; every
+check); *Order* sorts by severity or keeps the checklist order. Nothing is stored on the server.
+
 **CSV**: findings (`/findings/export`), the asset inventory (Inventory → Export), zones and
 conduits (Zones & Conduits → export). The command line `python generate_report.py` produces the same PDF from
 the database (see README → Compliance report).

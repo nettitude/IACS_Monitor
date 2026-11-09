@@ -951,14 +951,19 @@ def _draw_cover(canvas, doc):
     p.moveTo(0, PAGE_H); p.lineTo(0.62 * PAGE_W, PAGE_H); p.lineTo(0.42 * PAGE_W, 0.45 * PAGE_H); p.lineTo(0, 0.45 * PAGE_H); p.close()
     canvas.setFillColor(NAVY)
     canvas.drawPath(p, fill=1, stroke=0)
-    canvas.setStrokeColor(TEAL); canvas.setLineWidth(2)
-    canvas.rect(1.5 * cm, PAGE_H - 5.6 * cm, 3.6 * cm, 2.3 * cm, stroke=1, fill=0)
-    canvas.setFont("Helvetica-Bold", 13)
-    canvas.setFillColor(WHITE); canvas.drawString(1.9 * cm, PAGE_H - 4.7 * cm, "IACS")
-    canvas.setFillColor(TEAL); canvas.drawString(1.9 * cm + canvas.stringWidth("IACS", "Helvetica-Bold", 13) + 3, PAGE_H - 4.7 * cm, "Monitor")
+    logo = c.get("logo")                     # owner 2026-10-25: the audit checklist report puts the LRQA logo here
+    if logo:
+        canvas.drawImage(str(logo), 1.5 * cm, PAGE_H - 6.4 * cm, width=3.3 * cm, height=3.3 * cm, preserveAspectRatio=True, mask="auto")
+    else:
+        canvas.setStrokeColor(TEAL); canvas.setLineWidth(2)
+        canvas.rect(1.5 * cm, PAGE_H - 5.6 * cm, 3.6 * cm, 2.3 * cm, stroke=1, fill=0)
+        canvas.setFont("Helvetica-Bold", 13)
+        canvas.setFillColor(WHITE); canvas.drawString(1.9 * cm, PAGE_H - 4.7 * cm, "IACS")
+        canvas.setFillColor(TEAL); canvas.drawString(1.9 * cm + canvas.stringWidth("IACS", "Helvetica-Bold", 13) + 3, PAGE_H - 4.7 * cm, "Monitor")
     canvas.setFillColor(WHITE); canvas.setFont("Helvetica-Bold", 17)
-    canvas.drawString(1.5 * cm, PAGE_H - 7.6 * cm, "IEC 62443 Firewall")
-    canvas.drawString(1.5 * cm, PAGE_H - 8.4 * cm, "Audit")
+    lines = tuple(c.get("title_lines") or ("IEC 62443 Firewall", "Audit"))[:3]     # the audit checklist report sets its own
+    for i, line in enumerate(lines):
+        canvas.drawString(1.5 * cm, PAGE_H - (7.6 + 0.8 * i) * cm, str(line)[:40])
     y = PAGE_H - 9.8 * cm
     for k, v in (("Prepared For:", c.get("client") or "—"), ("Project:", c.get("project") or "—"),
                  ("Author:", c.get("author") or "IACS_Monitor"), ("Date:", c.get("date") or "")):
