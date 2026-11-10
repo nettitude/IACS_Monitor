@@ -932,11 +932,11 @@ FOOTER_H = 0.8 * cm
 CONTENT_W = PAGE_W - 2 * MARGIN
 
 
-LOGO = ROOT / "ui" / "lrqa_logo.png"       # owner 2026-11-10: the LRQA logo in place of the IACS Monitor wordmark (LRQA layout)
+LOGO = ROOT / "ui" / "report_logo.png"     # public branch: no logo ships; the template layout falls back to the wordmark
 
 
 def _logo_path(c: dict):
-    """The logo of the LRQA layout: the cover data's ``logo`` when set, else the shipped file, else None."""
+    """The logo of the template layout: the cover data's ``logo`` when set, else the shipped file, else None."""
     logo = c.get("logo") if isinstance(c, dict) else None
     if logo:
         return logo
@@ -962,7 +962,7 @@ def _draw_cover(canvas, doc):
     p.moveTo(0, PAGE_H); p.lineTo(0.62 * PAGE_W, PAGE_H); p.lineTo(0.42 * PAGE_W, 0.45 * PAGE_H); p.lineTo(0, 0.45 * PAGE_H); p.close()
     canvas.setFillColor(NAVY)
     canvas.drawPath(p, fill=1, stroke=0)
-    logo = _logo_path(c)                     # owner 2026-10-25 / 2026-11-10: the LRQA logo (the wordmark box without the file)
+    logo = _logo_path(c)                     # a logo file when one ships (the wordmark box without it)
     if logo:
         canvas.drawImage(str(logo), 1.5 * cm, PAGE_H - 6.4 * cm, width=3.3 * cm, height=3.3 * cm, preserveAspectRatio=True, mask="auto")
     else:
@@ -993,7 +993,7 @@ def _draw_header_footer(canvas, doc):
     c = getattr(doc, "_iasc_cover", None) or {}
     canvas.saveState()
     logo = _logo_path(c)
-    if logo:                                  # owner 2026-11-10: the LRQA logo in place of the wordmark
+    if logo:                                  # a logo file in place of the wordmark
         canvas.drawImage(str(logo), MARGIN, 0.85 * cm, width=1.1 * cm, height=1.1 * cm, preserveAspectRatio=True, mask="auto")
     else:
         _wordmark(canvas, MARGIN, 1.3 * cm)
@@ -1027,10 +1027,10 @@ def _draw_header_footer_public(canvas, doc):
     canvas.restoreState()
 
 
-LAYOUTS = ("lrqa", "public")       # lrqa = the LRQA compliance report (the template); public = the previous layout
+LAYOUTS = ("public",)              # public branch: the compliance report has one layout (the template style serves the audit report only)
 
 
-def _build_templates(doc, layout: str = "lrqa"):
+def _build_templates(doc, layout: str = "public"):
     cover_frame = Frame(MARGIN, MARGIN, PAGE_W - 2 * MARGIN, PAGE_H - 2 * MARGIN, id="cover_frame")
     if layout == "public":
         normal_frame = Frame(MARGIN, FOOTER_H + 1.2 * cm, PAGE_W - 2 * MARGIN,
@@ -3097,7 +3097,7 @@ def collect_rollup_data(db, *, baseline: Optional[str] = None, include_closed: b
     }
 
 
-def build_rollup_story(data: dict, layout: str = "lrqa") -> list:
+def build_rollup_story(data: dict, layout: str = "public") -> list:
     """Cover + one section per site (summary, findings, attestation,
     firewall inventory, coverage) + the control mapping once."""
     story = (build_cover_public(data) if layout == "public" else build_cover(data) + build_contents(data))
@@ -3191,11 +3191,11 @@ def build_story(data: dict) -> list:
     return story
 
 
-def render_pdf(data: dict, out, layout: str = "lrqa") -> None:
+def render_pdf(data: dict, out, layout: str = "public") -> None:
     """Render to ``out`` (a path or a binary file-like object).  ``layout``:
-    "lrqa" (the LRQA compliance report - the template, owner 2026-10-18) or
-    "public" (the public compliance report: cover table, executive summary,
-    findings by area)."""
+    "public" (the compliance report: cover table, executive summary, findings by
+    area) - the only layout on this branch; the template style is kept for the
+    audit checklist report."""
     if layout not in LAYOUTS:
         raise ValueError(f"unknown report layout {layout!r}; use one of {', '.join(LAYOUTS)}")
     cov = _cover_fields(data)
@@ -3213,7 +3213,7 @@ def render_pdf(data: dict, out, layout: str = "lrqa") -> None:
         doc = _ReportDoc(
             out, pagesize=A4, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=MARGIN,
             bottomMargin=MARGIN,
-            title="LRQA Compliance Report — IEC 62443 Firewall Audit",
+            title="Compliance Report — IEC 62443 Firewall Audit",
             author=cov["author"], subject="ISA/IEC 62443 Compliance Assessment",
         )
         doc._iasc_site = data.get("site")
@@ -3225,10 +3225,10 @@ def render_pdf(data: dict, out, layout: str = "lrqa") -> None:
         _RENDER_LOCK.release()
 
 
-def generate_report_bytes(db, all_sites: bool = False, layout: str = "lrqa", **opts) -> bytes:
+def generate_report_bytes(db, all_sites: bool = False, layout: str = "public", **opts) -> bytes:
     """Collect + render to PDF bytes (used by GET /reports/compliance.pdf).
     ``all_sites=True``: the explicit per-site roll-up (collect_rollup_data).
-    ``layout``: lrqa (the LRQA compliance report) or public (the public compliance report)."""
+    ``layout``: public (the compliance report; the only layout on this branch)."""
     buf = io.BytesIO()
     if all_sites:
         opts.pop("site_id", None)
@@ -3285,9 +3285,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                          "whose 62443-3-3 requirements apply only above it")
     ap.add_argument("--all-checks", action="store_true",
                     help="ignore the site's check selection (Reports page): report every check")
-    ap.add_argument("--layout", choices=LAYOUTS, default="lrqa",
-                    help="lrqa = the LRQA compliance report (cover, contents, distribution list, analysis); public = the "
-                         "public compliance report (cover table, executive summary, findings by area)")
+    ap.add_argument("--layout", choices=LAYOUTS, default="public", help="public = the compliance report (cover table, executive summary, findings by area)")
     ap.add_argument("--no-zones", action="store_true",
                     help="leave out the IEC 62443-3-2 Zones and Conduits section and the zone "
                          "SL-T judgement of device findings")

@@ -1761,9 +1761,9 @@ a.btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
         <div class="sys-card" id="report-card">
           <h3>Compliance report (PDF)</h3>
           <p class="hint">ISA/IEC 62443 compliance report built from the live database (same output as <span class="mono">generate_report.py</span>). Rendering can take a few seconds.</p>
-          <label class="form-label" for="rep-layout">Report layout</label>
-          <select id="rep-layout" data-testid="report-layout" title="LRQA compliance report: cover, contents, distribution list, engagement particulars, analysis per check. Public compliance report: cover table, executive summary, findings by area">
-            <option value="">LRQA compliance report</option><option value="public">Public compliance report</option>
+          <label class="form-label" for="rep-layout" hidden>Report layout</label>
+          <select id="rep-layout" data-testid="report-layout" hidden title="Compliance report: cover table, executive summary, findings by area">
+            <option value="">Compliance report</option>
           </select>
           <label class="form-label" for="rep-baseline">Baseline (attestation scope)</label>
           <select id="rep-baseline"><option value="">Active baseline</option></select>
@@ -1853,7 +1853,7 @@ a.btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
         </div>
         <div class="sys-card" id="audit-card" data-testid="audit-checklist">
           <h3>Audit checklist report (xlsx &rarr; PDF / CSV)</h3>
-          <p class="hint">Upload the filled-in <strong>ISA/IEC 62443 Master Audit Checklist</strong> workbook (sheet <span class="mono">Master Checklist</span>; the yellow columns Status, Maturity Level, Finding / Observation, Evidence Reviewed, Severity, Recommendation, Owner, Target Date). Each checklist row becomes one report finding: the check title is the finding's title, the audit check its details, with the domain and your observation, evidence and recommendation as written. The PDF uses the LRQA report layout and this site's <em>Report details</em>; the CSV holds the same findings, one line each. Nothing is stored.</p>
+          <p class="hint">Upload the filled-in <strong>ISA/IEC 62443 Master Audit Checklist</strong> workbook (sheet <span class="mono">Master Checklist</span>; the yellow columns Status, Maturity Level, Finding / Observation, Evidence Reviewed, Severity, Recommendation, Owner, Target Date). Each checklist row becomes one report finding: the check title is the finding's title, the audit check its details, with the domain and your observation, evidence and recommendation as written. The PDF uses the technical-report layout and this site's <em>Report details</em>; the CSV holds the same findings, one line each. Nothing is stored.</p>
           <div class="zc-form">
             <input type="file" id="ac-file" accept=".xlsx" aria-label="Master audit checklist workbook" data-testid="ac-file">
             <label class="ctrl-label" for="ac-scope">Findings</label>
@@ -1876,9 +1876,9 @@ a.btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
           <label class="form-label">Client points of contact (Distribution List) - any number</label>
           <div id="ac-poc" data-testid="ac-poc"></div>
           <button type="button" class="small" id="ac-poc-add" data-testid="ac-poc-add">+ Client POC</button>
-          <label class="form-label" style="margin-top:10px">LRQA consultants - any number</label>
+          <label class="form-label" style="margin-top:10px">Assessor team - any number</label>
           <div id="ac-lrqa" data-testid="ac-lrqa"></div>
-          <button type="button" class="small" id="ac-lrqa-add" data-testid="ac-lrqa-add">+ LRQA consultant</button>
+          <button type="button" class="small" id="ac-lrqa-add" data-testid="ac-lrqa-add">+ Assessor</button>
           <div class="hint" style="margin-top:6px">Pre-filled from this site's <em>Report details</em> when they are set; what you enter here is used for this report only (nothing is saved).</div>
           <div class="zc-form" style="margin-top:8px">
             <button type="button" class="small" id="ac-check" data-testid="ac-check">Check workbook</button>

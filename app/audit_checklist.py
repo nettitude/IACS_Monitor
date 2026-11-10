@@ -9,7 +9,7 @@ an import and creates a report ... a CSV export besides a PDF").
 
 This module reads the workbook, picks the rows that are findings, summarises the checklist per
 domain and writes the CSV; ``generate_audit_report.py`` (repo root) renders the PDF in the
-LRQA compliance report's layout, and ``POST /reports/audit-checklist`` serves both.
+technical-report layout, and ``POST /reports/audit-checklist`` serves both.
 
 Report finding = one checklist row:
   * title            = *Check title*

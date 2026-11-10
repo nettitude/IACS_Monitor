@@ -1,6 +1,6 @@
 """
 Audit checklist report (owner 2026-10-24): the filled-in ISA/IEC 62443 Master Audit Checklist
-workbook -> findings (one per checklist row), CSV, the PDF in the LRQA layout, the route.
+workbook -> findings (one per checklist row), CSV, the PDF in the technical-report layout, the route.
 """
 import datetime as dt
 import io
@@ -188,14 +188,14 @@ def test_pdf_prints_the_finding_as_specified():
                "constraints": "Interviews on 2026-10-20 only.", "site": "Plant A", "report_date": "2026-11-05",
                "distribution": [{"name": "Sam Lee", "role": "OT Security", "email": "sam@example.test", "side": "client"},
                                 {"name": "Kim Park", "role": "Plant manager", "email": "", "side": "client"},
-                                {"name": "Lee Cole", "role": "LRQA lead consultant", "email": "lee@lrqa.test", "side": "assessor"},
-                                {"name": "Ana Ruiz", "role": "LRQA consultant", "email": "", "side": "assessor"}],
+                                {"name": "Lee Cole", "role": "Lead assessor", "email": "lee@assessor.test", "side": "assessor"},
+                                {"name": "Ana Ruiz", "role": "Assessor", "email": "", "side": "assessor"}],
                "revisions": [{"version": "0.3", "date": "2026-10-24", "status": "Draft"}]}
     text = _pdf_text(gar.report_bytes(p, "pdf", scope="findings", order="severity", details=details, source_name="audit.xlsx"))
     # cover, front matter, particulars
     assert "IEC 62443 Audit" in text and "Checklist Report" in text and "Plant A - Operations" in text and "Q4 audit" in text
     assert "Distribution List" in text and "Sam Lee" in text and "Kim Park" in text and "Revision History" in text and "Draft" in text
-    assert "LRQA consultants" in text and "Lee Cole" in text and "Ana Ruiz" in text and "Date:\n2026-11-05" in text    # report date on the cover
+    assert "Assessor team" in text and "Lee Cole" in text and "Ana Ruiz" in text and "Date:\n2026-11-05" in text    # report date on the cover
     assert "report dated 2026-11-05" not in text                                                   # constraints given, so no default text
     assert "Engagement Particulars" in text and "Interviews on 2026-10-20 only." in text and "7 checks in 2 domains" in text
     assert "Compliance by Domain" in text and "Internal" in text
@@ -214,11 +214,11 @@ def test_pdf_prints_the_finding_as_specified():
     assert "Checklist Status" in text and "Program scope" in text and "Periodic rule review" in text
     assert "Severity and Status Scale" in text and "Guidelines on Firewalls and Firewall Policy" in text
     assert "Firewall Audit" not in text                     # not the compliance report's cover title
-    # owner 2026-10-25: the LRQA logo (ui/lrqa_logo.png) is drawn on the cover, nowhere else
+    # public branch: no logo ships - the cover and the footers draw the IACS Monitor wordmark
     import pypdf
     pages = pypdf.PdfReader(io.BytesIO(gar.report_bytes(p, "pdf", details=details))).pages
-    assert gar.LOGO.is_file() and len(pages[0].images) == 1 and all(len(pg.images) == 1 for pg in pages[1:4])
-    assert "IACS" not in pages[0].extract_text() and "IACS" not in pages[1].extract_text()  # owner 2026-11-10: the logo replaces the footer wordmark
+    assert not gar.LOGO.is_file() and all(len(pg.images) == 0 for pg in pages[0:4])
+    assert "IACS" in pages[0].extract_text() and "IACS" in pages[1].extract_text()
     # an empty selection renders too
     empty = _pdf_text(gar.report_bytes(ac.parse_workbook(make_workbook(ROWS[4:5])), "pdf"))
     assert "No findings" in empty and "Checklist Status" in empty
@@ -230,24 +230,24 @@ def test_cli_writes_pdf_and_csv(tmp_path, capsys):
     src.write_bytes(make_workbook())
     out, csv_path = tmp_path / "r.pdf", tmp_path / "r.csv"
     assert gar.main([str(src), "--out", str(out), "--csv", str(csv_path), "--client", "Plant A", "--scope", "assessed", "--order", "checklist",
-                     "--date", "2026-12-01", "--poc", "Sam Lee; OT Security; sam@x.test", "--poc", "Kim Park", "--consultant", "Lee Cole; LRQA lead",
+                     "--date", "2026-12-01", "--poc", "Sam Lee; OT Security; sam@x.test", "--poc", "Kim Park", "--consultant", "Lee Cole; Lead assessor",
                      "--no-prompt"]) == 0
     import csv
     assert out.read_bytes().startswith(b"%PDF")
     assert len(list(csv.reader(io.StringIO(csv_path.read_text(encoding="utf-8").lstrip("\ufeff"))))) == 7      # header + 6 assessed
     text = _pdf_text(out.read_bytes())
     assert "Plant A" in text and "in checklist order" in text
-    assert "Date:\n2026-12-01" in text and "Sam Lee" in text and "Kim Park" in text and "Lee Cole" in text and "LRQA lead" in text
+    assert "Date:\n2026-12-01" in text and "Sam Lee" in text and "Kim Park" in text and "Lee Cole" in text and "Lead assessor" in text
     assert gar.main([str(tmp_path / "missing.xlsx")]) == 2 and "error:" in capsys.readouterr().err
     (tmp_path / "bad.xlsx").write_bytes(b"nope")
     assert gar.main([str(tmp_path / "bad.xlsx"), "--out", str(tmp_path / "x.pdf")]) == 2
 
 
 def test_cli_prompts_for_the_cover_and_the_lists(capsys):
-    """Owner 2026-10-24: the program asks for Prepared for, the author, the date, the client POCs and the LRQA consultants."""
+    """Owner 2026-10-24: the program asks for Prepared for, the author, the date, the client POCs and the assessor team."""
     import generate_audit_report as gar
     answers = iter(["Plant B", "", "2026-10-30", "Sam Lee", "OT Security", "sam@x.test", "Kim Park", "", "", "",
-                    "Lee Cole", "LRQA lead", "lee@lrqa.test", ""])
+                    "Lee Cole", "Lead assessor", "lee@assessor.test", ""])
     asked = []
 
     def ask(prompt):
@@ -256,13 +256,13 @@ def test_cli_prompts_for_the_cover_and_the_lists(capsys):
     d = gar.prompt_details({}, ask=ask)
     assert d["client_name"] == "Plant B" and d["author"] == "IACS_Monitor" and d["report_date"] == "2026-10-30"
     assert [(x["name"], x["side"]) for x in d["distribution"]] == [("Sam Lee", "client"), ("Kim Park", "client"), ("Lee Cole", "assessor")]
-    assert d["distribution"][0]["email"] == "sam@x.test" and d["distribution"][2]["role"] == "LRQA lead"
-    assert any("Prepared for" in q for q in asked) and any("Date of the report" in q for q in asked) and any("LRQA consultant 1" in q for q in asked)
+    assert d["distribution"][0]["email"] == "sam@x.test" and d["distribution"][2]["role"] == "Lead assessor"
+    assert any("Prepared for" in q for q in asked) and any("Date of the report" in q for q in asked) and any("Assessor 1" in q for q in asked)
     # fields given on the command line are not asked again; EOF keeps the defaults
     asked.clear()
     d = gar.prompt_details({"client_name": "C", "author": "A", "report_date": "2026-01-01", "distribution": [{"name": "P", "side": "client"}]},
                            ask=lambda q: (asked.append(q), (_ for _ in ()).throw(EOFError()))[1])
-    assert d["client_name"] == "C" and [x["name"] for x in d["distribution"]] == ["P"] and all("LRQA consultant" in q for q in asked)
+    assert d["client_name"] == "C" and [x["name"] for x in d["distribution"]] == ["P"] and all("Assessor" in q for q in asked)
     # no terminal (pytest): main() never prompts
     src_ok = gar.main is not None
     assert src_ok
@@ -286,16 +286,16 @@ def test_route_formats_and_details(api):
     assert int(r.headers["content-length"]) == len(r.content)
     text = _pdf_text(r.content)
     assert "Plant A - Operations" in text and "Desk review only." in text and "Personnel screening" in text
-    # details given with the request override the site's: Prepared for, author, date, POCs and LRQA consultants
+    # details given with the request override the site's: Prepared for, author, date, POCs and assessor team
     given = {"client_name": "Plant A - Board", "author": "Lee", "report_date": "2026-11-11",
              "pocs": [{"name": "Sam Lee", "role": "OT Security", "email": "sam@x.test"}, {"name": "Kim Park"}],
-             "consultants": [{"name": "Lee Cole", "role": "LRQA lead consultant"}, {"name": "Ana Ruiz"}], "constraints": ""}
+             "consultants": [{"name": "Lee Cole", "role": "Lead assessor"}, {"name": "Ana Ruiz"}], "constraints": ""}
     r = c.post("/reports/audit-checklist", params={"site_id": a}, files=files(), data={"details": __import__("json").dumps(given)})
     assert r.status_code == 200, r.text
     text = _pdf_text(r.content)
     assert "Plant A - Board" in text and "Plant A - Operations" not in text and "Author:\nLee" in text and "Date:\n2026-11-11" in text
     assert "Desk review only." in text                                                    # an empty field keeps the site's value
-    assert all(x in text for x in ("Sam Lee", "Kim Park", "Lee Cole", "Ana Ruiz", "LRQA consultants"))
+    assert all(x in text for x in ("Sam Lee", "Kim Park", "Lee Cole", "Ana Ruiz", "Assessor team"))
     assert c.post("/reports/audit-checklist", files=files(), data={"details": "[1, 2]"}).status_code == 422
     assert c.post("/reports/audit-checklist", files=files(), data={"details": "{not json"}).status_code == 422
     j = c.post("/reports/audit-checklist", params={"format": "json"}, files=files(), data={"details": "{}"}).json()

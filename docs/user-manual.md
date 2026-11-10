@@ -100,7 +100,7 @@ The sidebar is organised by task:
 | Compliance | Shadow Rules | Shadowed, duplicate and conflicting policies. |
 | Compliance | Attestation | Zone-documentation attestation (checklist 1.1-1.6) with proof files. |
 | Assets | Inventory | The asset inventory: edit, classify, approve, import / export CSV. |
-| System | Reports & Diagnostics | The PDF (LRQA or public layout), the report details (client, contacts, revisions), the findings workbook, the checks in the report, the review schedule, diagnostics. |
+| System | Reports & Diagnostics | The PDF, the report details (client, contacts, revisions), the findings workbook, the checks in the report, the review schedule, diagnostics. |
 
 Conventions that hold everywhere: clicking a row opens its detail panel **without** moving the
 list; a **⚑ n** badge means "n open findings about this object - click to edit them"; a **?**
@@ -362,16 +362,11 @@ file and keeps the history; the PDF reports its state.
 
 ## 8. Reports and exports
 
-**Report layouts (2026-10-18).** *Report layout* on the Reports page offers two PDFs. The **LRQA compliance
-report** (default) follows the technical-report template: cover (Prepared For,
-Project, Author, Date), Contents, Distribution List, Revision History, Engagement Particulars
-(background, scope, constraints, finding summary), Findings (one row per check), Analysis (one entry
-per check) and an Appendix with the supporting sections. Fill in **Reports & Diagnostics → Report
-details** (client, project, author, version, classification, the client points of contact and the
-assessor team for the distribution list - as many rows as needed -, the revision history, the
-assessment window / constraints) - it is saved per site and printed on the
-cover and the first pages; until then the report uses the site name and the defaults. The **public compliance
-report** is the previous layout: cover table, executive summary, findings by area with the write-ups.
+**Report details.** Fill in **Reports & Diagnostics → Report details** (client, project, author,
+version, classification, the client points of contact and the assessor team for the distribution
+list - as many rows as needed -, the revision history, the assessment window / constraints) - it is
+saved per site and used by the audit checklist report; the compliance report prints the site name,
+code and date on its cover.
 
 **What the PDF says per check (2026-10-17).** The findings part of the report is written once per
 check: the *concern* (what was observed), *why it is a finding*, the *remediation*, for FortiGate
@@ -387,8 +382,7 @@ show in the console under "Why this was flagged".
 **Reports & Diagnostics → Compliance report (PDF).** Options: target security level (SL0-SL4 or
 all: checks whose requirements only apply above the target are left out and marked), *Ignore the
 check selection*, *Include closed findings* (their own section), zones on / off, one site or the
-all-sites roll-up, and *Report layout*. The LRQA compliance report is described above; the public
-compliance report has the executive summary (severity × status and per-area totals), the findings
+all-sites roll-up. The compliance report has the executive summary (severity × status and per-area totals), the findings
 by area and check with the write-ups, the false positives, closed findings, the checks excluded, the
 attestation, zones and conduits, the firewall inventory, shadowed and redundant rules, the access
 review, the check coverage (FINDINGS / PASS / NOT EVALUATED / no data per check, with why), the
@@ -409,7 +403,7 @@ with people who do not use the console.
 62443 Master Audit Checklist workbook: fill the yellow columns in Excel (Status, Maturity Level,
 Finding / Observation, Evidence Reviewed, Severity, Recommendation, Owner, Target Date), upload the
 workbook on this card, fill in **Prepared for**, the **Author**, the **Date of the report**, the
-**Client points of contact** and the **LRQA consultants** (add as many rows as needed; the card is
+**Client points of contact** and the **Assessor team** (add as many rows as needed; the card is
 pre-filled from *Report details* and nothing you type here is saved), *Check workbook* to see the
 counts and the finding list (and notes such as a finding without a status), then *Download report
 (PDF)* or *Download findings (CSV)*. The command line `python generate_audit_report.py CHECKLIST.xlsx`

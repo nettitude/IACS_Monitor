@@ -8595,10 +8595,7 @@ async def compliance_report_pdf(
         "judged against their zone SL-T (only when the site has zones; findings are unchanged)")),
     all_checks: bool = Query(False, description=(
         "ignore the site's check selection (Reports page, /reports/check-selection): report every check")),
-    layout: str = Query("lrqa", pattern="^(lrqa|public)$", description=(
-        "owner 2026-10-18: lrqa = the LRQA compliance report (the template: cover, contents, distribution list, "
-        "engagement particulars, analysis); public = the public compliance report (cover table, executive summary, "
-        "findings by area)")),
+    layout: str = Query("public", pattern="^(public)$", description="public = the compliance report (cover table, executive summary, findings by area)"),
     db: DBSession = Depends(get_db),
 ):
     """ISA/IEC 62443 compliance PDF built from the live database (same
@@ -8652,7 +8649,7 @@ def _audit_report_module():
 @router.post("/reports/audit-checklist")
 async def audit_checklist_report(
     format: str = Query("pdf", pattern="^(pdf|csv|json)$", description=(
-        "pdf (default): the audit report in the LRQA layout; csv: one line per finding; json: the preview "
+        "pdf (default): the audit report in the technical-report layout; csv: one line per finding; json: the preview "
         "(counts per status / severity / domain, the finding list, workbook notes)")),
     scope: str = Query("findings", pattern="^(findings|assessed|all)$", description=(
         "findings (default): checks rated Non-compliant / Partially compliant plus checks with a recorded finding, "
@@ -8668,7 +8665,7 @@ async def audit_checklist_report(
         "JSON with the report details given for this report, overriding the site's stored ones: client_name (Prepared for), "
         "author, author_email, report_date (YYYY-MM-DD), project_name, version, classification, constraints, "
         "pocs ([{name, role, email}] - the client's points of contact, any number), consultants ([{name, role, email}] - the "
-        "LRQA consultants, any number), or distribution ([{name, role, email, side: client | assessor}]), revisions")),
+        "assessor team, any number), or distribution ([{name, role, email, side: client | assessor}]), revisions")),
     db: DBSession = Depends(get_db),
 ):
     """Owner 2026-10-24: the ISA/IEC 62443 audit report from a filled-in Master Audit

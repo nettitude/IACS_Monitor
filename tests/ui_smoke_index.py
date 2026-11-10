@@ -2553,7 +2553,7 @@ class Smoke:
         try:
             import pypdf
             text = "\n".join(p.extract_text() or "" for p in pypdf.PdfReader(_io.BytesIO(pdf)).pages)
-            self.check(all(x in text for x in ("Smoke Audit Client", "Smoke Author", "2026-10-24", "Smoke POC One", "Smoke POC Two", "Smoke Consultant", "LRQA consultants")),
+            self.check(all(x in text for x in ("Smoke Audit Client", "Smoke Author", "2026-10-24", "Smoke POC One", "Smoke POC Two", "Smoke Consultant", "Assessor team")),
                        "[system] audit checklist PDF lacks the cover / distribution details typed on the card")
         except ImportError:
             pass

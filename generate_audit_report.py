@@ -3,7 +3,7 @@ generate_audit_report.py
 ========================
 The ISA/IEC 62443 audit report built from a filled-in Master Audit Checklist workbook
 (owner 2026-10-24).  The workbook (``ISA62443_Master_Audit_Checklist.xlsx``, sheet
-*Master Checklist*) is the input; the output is the PDF in the LRQA compliance report's
+*Master Checklist*) is the input; the output is the PDF in the technical-report
 layout (cover, contents, distribution list, revision history, engagement particulars,
 findings, analysis, appendix - ``generate_report.py`` is reused for the page furniture and
 the styles) and, with ``--csv``, the findings as a CSV file.
@@ -49,7 +49,7 @@ H1, H2, H3, BODY, SMALL, CELL, CELL_SMALL, CELL_BOLD, CAPTION = gr.H1, gr.H2, gr
 cm = gr.cm
 
 COVER_TITLE_LINES = ("IEC 62443 Audit", "Checklist Report")
-LOGO = ROOT / "ui" / "lrqa_logo.png"            # owner 2026-10-25: the LRQA logo on the cover (the wordmark box when the file is missing)
+LOGO = ROOT / "ui" / "report_logo.png"          # public branch: no logo ships; the cover draws the IACS Monitor wordmark box (drop a PNG here to brand it)
 SEV_LABEL = {"critical": "Critical", "high": "High", "medium": "Medium", "low": "Low", None: "Unrated"}
 STATUS_COLOUR = {"Non-compliant": gr.SEV_COLOUR["high"], "Partially compliant": gr.SEV_COLOUR["medium"],
                  "Compliant": gr.OK_GREEN, "Not applicable": gr.DARK_GREY, "Not assessed": gr.DARK_GREY}
@@ -95,7 +95,7 @@ def build_contents(data: dict) -> list:
 
 
 def build_distribution(data: dict) -> list:
-    """1 Distribution List: the client's points of contact, then the LRQA consultants (owner 2026-10-24)."""
+    """1 Distribution List: the client's points of contact, then the assessor team (owner 2026-10-24)."""
     d = data.get("details") or {}
     dist = d.get("distribution") or []
     client = [r for r in dist if (r.get("side") or "client") != "assessor"]
@@ -104,7 +104,7 @@ def build_distribution(data: dict) -> list:
         lrqa = [{"name": d.get("author") or "", "role": "Author", "email": d.get("author_email") or ""}]
     return [_p("1&nbsp;&nbsp;Distribution List", H1),
             _p(esc(f"{d.get('client_name') or data.get('site') or 'Client'} - points of contact"), H3), gr._people_table(client),
-            _p("LRQA consultants", H3), gr._people_table(lrqa), _sp(0.6)]
+            _p("Assessor team", H3), gr._people_table(lrqa), _sp(0.6)]
 
 
 def build_revisions(data: dict) -> list:
@@ -326,7 +326,7 @@ def build_story(data: dict) -> list:
 
 
 def render_pdf(data: dict, out) -> None:
-    """Render to ``out`` (a path or a binary file-like object) in the LRQA layout."""
+    """Render to ``out`` (a path or a binary file-like object) in the technical-report layout."""
     cov = _cover_fields(data)
     with gr._RENDER_LOCK:                                # the shared styles are module state (audit 2026-10-18)
         gr._set_layout("lrqa")
@@ -336,7 +336,7 @@ def render_pdf(data: dict, out) -> None:
                                 subject="ISA/IEC 62443 Master Audit Checklist")
             doc._iasc_site = data.get("site")
             doc._iasc_cover = cov
-            gr._build_templates(doc)
+            gr._build_templates(doc, "lrqa")        # the template page furniture (the compliance report is public-only here)
             doc.multiBuild(build_story(data))
         finally:
             gr._set_layout("lrqa")
@@ -380,7 +380,7 @@ def _ask_people(label: str, *, ask=input) -> list:
 def prompt_details(details: dict, *, ask=input, out=sys.stderr) -> dict:
     """Owner 2026-10-24: the program asks for what the cover and the distribution list need -
     Prepared for, the author, the date of the report, the client's points of contact and the
-    LRQA consultants (any number of each) - unless they were already given on the command line."""
+    assessor team (any number of each) - unless they were already given on the command line."""
     d = dict(details)
     print("Report details (Enter keeps the default; the lists end with an empty name).", file=out)
     if not d.get("client_name"):
@@ -393,7 +393,7 @@ def prompt_details(details: dict, *, ask=input, out=sys.stderr) -> dict:
     if not any(r.get("side") == "client" for r in dist):
         dist += [{**r, "side": "client"} for r in _ask_people("Client POC", ask=ask)]
     if not any(r.get("side") == "assessor" for r in dist):
-        dist += [{**r, "side": "assessor"} for r in _ask_people("LRQA consultant", ask=ask)]
+        dist += [{**r, "side": "assessor"} for r in _ask_people("Assessor", ask=ask)]
     d["distribution"] = dist
     return ac.clean_details(d)
 
@@ -413,7 +413,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     ap.add_argument("--poc", action="append", default=[], metavar="'NAME; ROLE; EMAIL'",
                     help="a client point of contact for the Distribution List (repeat for several; asked for when none is given)")
     ap.add_argument("--consultant", action="append", default=[], metavar="'NAME; ROLE; EMAIL'",
-                    help="an LRQA consultant for the Distribution List (repeat for several; asked for when none is given)")
+                    help="a member of the assessor team for the Distribution List (repeat for several; asked for when none is given)")
     ap.add_argument("--no-prompt", action="store_true", help="never ask on the terminal; use the flags and defaults only")
     ap.add_argument("--project", help="Project on the cover")
     ap.add_argument("--author", help="Author on the cover (asked for when missing; default IACS_Monitor)")

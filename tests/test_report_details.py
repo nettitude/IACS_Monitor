@@ -6,6 +6,8 @@ import contextlib
 import io
 
 import pytest
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -78,14 +80,11 @@ def test_pdf_prints_the_details(api):
     r = c.get("/reports/compliance.pdf", params={"site_id": a})
     assert r.status_code == 200 and r.content.startswith(b"%PDF")
     text = "\n".join(p.extract_text() for p in pypdf.PdfReader(io.BytesIO(r.content)).pages)
-    assert "Plant A - Operations" in text and "Q4 firewall audit" in text and "Internal" in text
-    assert "Distribution List" in text and "Sam Lee" in text and "OT Security" in text
-    assert "Revision History" in text and "Assessment in progress" in text
-    assert "Engagement Particulars" in text and "Captures cover the control network only." in text
-    assert "Contents" in text and "Appendix" in text
-    # the other site keeps the defaults
-    text_b = "\n".join(p.extract_text() for p in pypdf.PdfReader(io.BytesIO(c.get("/reports/compliance.pdf", params={"site_id": b}).content)).pages)
-    assert "Plant A - Operations" not in text_b and "Confidential Security Data (CSD)" in text_b
+    # public branch: the compliance report has the public layout only - the report details feed the audit
+    # checklist report; the compliance PDF prints no distribution list / particulars
+    assert "OT Firewall Security Review" in text and "Executive Summary" in text
+    assert "Distribution List" not in text and "Engagement Particulars" not in text
+    assert c.get("/reports/details", params={"site_id": a}).json()["client_name"] == "Plant A - Operations"
 
 
 def test_public_layout_is_the_previous_report(api):
@@ -99,10 +98,9 @@ def test_public_layout_is_the_previous_report(api):
     assert "OT Firewall Security Review" in text and "Executive Summary" in text and "Prepared For:" in text
     assert "Distribution List" not in text and "Engagement Particulars" not in text and "Contents" not in text
     assert c.get("/reports/compliance.pdf", params={"site_id": a, "layout": "fancy"}).status_code == 422
-    assert c.get("/reports/compliance.pdf", params={"site_id": a, "layout": "lrqa"}).status_code == 200
-    # the LRQA layout is the default and leaves the shared styles in the template look afterwards
+    assert c.get("/reports/compliance.pdf", params={"site_id": a, "layout": "lrqa"}).status_code == 422     # public branch: one layout
     text2 = "\n".join(p.extract_text() for p in pypdf.PdfReader(io.BytesIO(c.get("/reports/compliance.pdf", params={"site_id": a}).content)).pages)
-    assert "Distribution List" in text2 and "Executive Summary" in text2
+    assert "Distribution List" not in text2 and "Executive Summary" in text2
 
 
 def test_rollup_public_has_cover_and_no_placeholder_contents(api):
@@ -116,8 +114,7 @@ def test_rollup_public_has_cover_and_no_placeholder_contents(api):
     assert "OT Firewall Security Review" in pages[0] and not any("Placeholder for table of contents" in p for p in pages)
     r = c.get("/reports/compliance.pdf", params={"all_sites": "true"})
     text = "\n".join(p.extract_text() or "" for p in pypdf.PdfReader(io.BytesIO(r.content)).pages)
-    assert "2  Site: Plant A" in text and "2.1  Findings" in text and "3.2  Analysis: Plant B" in text and "4  Appendix" in text
-    assert "5  Analysis" not in text
+    assert "Plant A" in text and "Plant B" in text and "Distribution List" not in text          # public branch: the public roll-up only
 
 
 def test_single_site_lrqa_has_no_blank_page_before_findings(api):
@@ -129,8 +126,8 @@ def test_single_site_lrqa_has_no_blank_page_before_findings(api):
     assert blank == [], blank
 
 
-def test_lrqa_layout_draws_the_logo_not_the_wordmark(tmp_path):
-    """Owner 2026-11-10: the LRQA logo replaces the IACS Monitor wordmark on the cover and in the footers."""
+def test_public_branch_has_no_logo_and_one_layout(tmp_path):
+    """Public branch: no logo file ships, the compliance report has the public layout only."""
     import io
     import pypdf
     import generate_report as gr
@@ -141,11 +138,10 @@ def test_lrqa_layout_draws_the_logo_not_the_wordmark(tmp_path):
     Base.metadata.create_all(e)
     s = sessionmaker(bind=e)()
     try:
-        assert gr.LOGO.is_file()
-        pages = pypdf.PdfReader(io.BytesIO(gr.generate_report_bytes(s, layout="lrqa"))).pages
-        assert len(pages[0].images) == 1 and len(pages[1].images) == 1
-        assert "IACS Monitor" not in pages[1].extract_text().replace("IACS\nMonitor", "IACS Monitor")
-        pub = pypdf.PdfReader(io.BytesIO(gr.generate_report_bytes(s, layout="public"))).pages
-        assert len(pub[0].images) == 0                           # the public layout is untouched
+        assert not gr.LOGO.is_file() and gr.LAYOUTS == ("public",)
+        pages = pypdf.PdfReader(io.BytesIO(gr.generate_report_bytes(s))).pages
+        assert len(pages[0].images) == 0 and "OT Firewall Security Review" in pages[0].extract_text()
+        with pytest.raises(ValueError):
+            gr.render_pdf({}, io.BytesIO(), layout="lrqa")
     finally:
         s.close()

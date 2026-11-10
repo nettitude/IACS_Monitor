@@ -554,9 +554,11 @@ pytest. `docker-compose.yml`, `build.sh` and docs/docker-install.md already use 
   per VDOM table (ctx `vdom_views`, `ref_key local-in:<vdom>/<id>`, evidence `vdom`). Test `tests/test_owner_batch_1109.py`.
 - LRQA logo (owner 2026-11-10, "use this logo in the LRQA report in place of the IASC Monitor"): `generate_report.LOGO`
   (`ui/lrqa_logo.png`) / `_logo_path` on the LRQA cover and in every footer; the wordmark is the fallback; public layout untouched.
-- Branches (owner 2026-11-10): `main` = private LRQA-branded version; a `public` branch is to carry one commit that removes the
-  report branding (public layout only). Until the owner says otherwise, only the report branding differs. Audit checklist
-  report in the public branch: owner to choose (a) unbranded or (b) removed.
+- Branches (owner 2026-11-10): `main` = private LRQA-branded version; `public` = main plus ONE commit "Public branch: report
+  branding removed" (public layout only, no logo file, audit checklist report kept unbranded as "Assessor team"; tracker
+  "Public branch - 2026-11-10"). Until the owner says otherwise only the report branding differs: land every change on
+  `main`, then `git checkout public && git merge main`; never commit features on `public`. **This file is the `public`
+  branch copy** - the branding paragraphs above describe `main`.
 
 ## Open / not started (owner hasn't asked)
 

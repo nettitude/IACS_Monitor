@@ -153,7 +153,7 @@ def test_per_site_pdf_isolation(client):
         assert leaked not in ta, leaked
     for leaked in ("Alpha", "ALPHA"):
         assert leaked not in tb, leaked
-    assert "Alpha Plant (alpha)" in ta          # the site code on the LRQA cover (Project line)
+    assert "Site Code:" in ta and "alpha" in ta  # the site code on the public cover
 
 
 def test_per_site_report_data_isolation(client):
