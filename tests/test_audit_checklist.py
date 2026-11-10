@@ -217,8 +217,8 @@ def test_pdf_prints_the_finding_as_specified():
     # owner 2026-10-25: the LRQA logo (ui/lrqa_logo.png) is drawn on the cover, nowhere else
     import pypdf
     pages = pypdf.PdfReader(io.BytesIO(gar.report_bytes(p, "pdf", details=details))).pages
-    assert gar.LOGO.is_file() and len(pages[0].images) == 1 and all(len(pg.images) == 0 for pg in pages[1:4])
-    assert "IACS" not in pages[0].extract_text() and "IACS" in pages[1].extract_text()      # the wordmark stays in the page footers
+    assert gar.LOGO.is_file() and len(pages[0].images) == 1 and all(len(pg.images) == 1 for pg in pages[1:4])
+    assert "IACS" not in pages[0].extract_text() and "IACS" not in pages[1].extract_text()  # owner 2026-11-10: the logo replaces the footer wordmark
     # an empty selection renders too
     empty = _pdf_text(gar.report_bytes(ac.parse_workbook(make_workbook(ROWS[4:5])), "pdf"))
     assert "No findings" in empty and "Checklist Status" in empty

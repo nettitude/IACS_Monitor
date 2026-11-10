@@ -552,6 +552,11 @@ pytest. `docker-compose.yml`, `build.sh` and docs/docker-install.md already use 
   `no_policy_ports`, `mab_ports`); `access_paths.tunnel_selector_map` keys FortiOS zones whose members are all
   tunnel interfaces (union of remote selectors, no local bound; mixed zones not); `config_local_in_permits_all` judged
   per VDOM table (ctx `vdom_views`, `ref_key local-in:<vdom>/<id>`, evidence `vdom`). Test `tests/test_owner_batch_1109.py`.
+- LRQA logo (owner 2026-11-10, "use this logo in the LRQA report in place of the IASC Monitor"): `generate_report.LOGO`
+  (`ui/lrqa_logo.png`) / `_logo_path` on the LRQA cover and in every footer; the wordmark is the fallback; public layout untouched.
+- Branches (owner 2026-11-10): `main` = private LRQA-branded version; a `public` branch is to carry one commit that removes the
+  report branding (public layout only). Until the owner says otherwise, only the report branding differs. Audit checklist
+  report in the public branch: owner to choose (a) unbranded or (b) removed.
 
 ## Open / not started (owner hasn't asked)
 

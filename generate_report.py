@@ -932,8 +932,19 @@ FOOTER_H = 0.8 * cm
 CONTENT_W = PAGE_W - 2 * MARGIN
 
 
+LOGO = ROOT / "ui" / "lrqa_logo.png"       # owner 2026-11-10: the LRQA logo in place of the IACS Monitor wordmark (LRQA layout)
+
+
+def _logo_path(c: dict):
+    """The logo of the LRQA layout: the cover data's ``logo`` when set, else the shipped file, else None."""
+    logo = c.get("logo") if isinstance(c, dict) else None
+    if logo:
+        return logo
+    return str(LOGO) if LOGO.is_file() else None
+
+
 def _wordmark(canvas, x, y, size=9):
-    """The IACS Monitor wordmark (navy "IACS", teal "Monitor")."""
+    """The IACS Monitor wordmark (navy "IACS", teal "Monitor") - the fallback when no logo file ships."""
     canvas.setFont("Helvetica-Bold", size)
     canvas.setFillColor(NAVY)
     canvas.drawString(x, y, "IACS")
@@ -951,7 +962,7 @@ def _draw_cover(canvas, doc):
     p.moveTo(0, PAGE_H); p.lineTo(0.62 * PAGE_W, PAGE_H); p.lineTo(0.42 * PAGE_W, 0.45 * PAGE_H); p.lineTo(0, 0.45 * PAGE_H); p.close()
     canvas.setFillColor(NAVY)
     canvas.drawPath(p, fill=1, stroke=0)
-    logo = c.get("logo")                     # owner 2026-10-25: the audit checklist report puts the LRQA logo here
+    logo = _logo_path(c)                     # owner 2026-10-25 / 2026-11-10: the LRQA logo (the wordmark box without the file)
     if logo:
         canvas.drawImage(str(logo), 1.5 * cm, PAGE_H - 6.4 * cm, width=3.3 * cm, height=3.3 * cm, preserveAspectRatio=True, mask="auto")
     else:
@@ -981,7 +992,11 @@ def _draw_header_footer(canvas, doc):
     """Called on every normal page (not the cover): wordmark, classification, page number."""
     c = getattr(doc, "_iasc_cover", None) or {}
     canvas.saveState()
-    _wordmark(canvas, MARGIN, 1.3 * cm)
+    logo = _logo_path(c)
+    if logo:                                  # owner 2026-11-10: the LRQA logo in place of the wordmark
+        canvas.drawImage(str(logo), MARGIN, 0.85 * cm, width=1.1 * cm, height=1.1 * cm, preserveAspectRatio=True, mask="auto")
+    else:
+        _wordmark(canvas, MARGIN, 1.3 * cm)
     canvas.setFillColor(colors.black); canvas.setFont("Helvetica", 7.5)
     canvas.drawCentredString(PAGE_W / 2, 1.3 * cm, str(c.get("classification") or "Confidential Security Data (CSD)")[:80])
     canvas.drawRightString(PAGE_W - MARGIN, 1.3 * cm, str(doc.page))

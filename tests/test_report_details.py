@@ -125,5 +125,27 @@ def test_single_site_lrqa_has_no_blank_page_before_findings(api):
     c, a, b, Session = api
     r = c.get("/reports/compliance.pdf", params={"site_id": a})
     pages = [(p.extract_text() or "").strip() for p in pypdf.PdfReader(io.BytesIO(r.content)).pages]
-    blank = [i + 1 for i, t in enumerate(pages) if len(t.splitlines()) <= 4]       # only the footer
+    blank = [i + 1 for i, t in enumerate(pages) if len(t.splitlines()) <= 3]       # only the footer (classification + page; the logo is an image since 2026-11-10)
     assert blank == [], blank
+
+
+def test_lrqa_layout_draws_the_logo_not_the_wordmark(tmp_path):
+    """Owner 2026-11-10: the LRQA logo replaces the IACS Monitor wordmark on the cover and in the footers."""
+    import io
+    import pypdf
+    import generate_report as gr
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.models import Base
+    e = create_engine(f"sqlite:///{tmp_path / 'r.db'}")
+    Base.metadata.create_all(e)
+    s = sessionmaker(bind=e)()
+    try:
+        assert gr.LOGO.is_file()
+        pages = pypdf.PdfReader(io.BytesIO(gr.generate_report_bytes(s, layout="lrqa"))).pages
+        assert len(pages[0].images) == 1 and len(pages[1].images) == 1
+        assert "IACS Monitor" not in pages[1].extract_text().replace("IACS\nMonitor", "IACS Monitor")
+        pub = pypdf.PdfReader(io.BytesIO(gr.generate_report_bytes(s, layout="public"))).pages
+        assert len(pub[0].images) == 0                           # the public layout is untouched
+    finally:
+        s.close()

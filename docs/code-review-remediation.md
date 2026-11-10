@@ -1623,6 +1623,10 @@ Docs: explain texts of the four checks, `docs/62443-check-reference.md` rows, RE
 
 Tests: `tests/test_owner_batch_1109.py` (11: exclusions resolve / inherit / inert / `all` minus / FQDN kept; subtraction leaves unresolvable tokens; policy rows carry the note; VPN-sourced ALL high for dial-up and ssl.root, inside stays medium, single-service VPN policy only "source all"; AV info with L2 destination and medium into the L3.5 DMZ; open-auth ports unprotected with MAB listed, standalone FortiSwitchOS modes, review on stored modes; zone of tunnels narrowed and a mixed zone not, selector map keys; local-in per VDOM with two findings). `test_fortiswitch` expectation gains `port_security_mode`. Full suite 2867 passed, 11 skipped (13:44), 0 failed. Not packaged.
 
+## LRQA logo in the LRQA compliance report - 2026-11-10
+
+Owner: "use this logo in the LRQA report in place of the IASC Monitor" (the logo file is the one already shipped for the audit checklist report, `ui/lrqa_logo.png`, byte-identical). `generate_report.LOGO` / `_logo_path`: the LRQA layout draws the logo on the cover (where the audit report already put it) and in the footer of every page in place of the text wordmark (`_draw_header_footer`); the wordmark remains the fallback when the file is missing. The public layout is untouched. Tests: `test_report_details.test_lrqa_layout_draws_the_logo_not_the_wordmark` (cover and page 2 carry one image, the public cover none), `test_audit_checklist` footer expectation inverted, the blank-page heuristic lowered to 3 lines (the footer lost the wordmark line). README. Not packaged.
+
 ## Upgrade notes for existing installs
 
 * Unversioned databases (created by the app before migrations were tracked) are handled automatically by `install.sh` and the Docker entrypoint: `alembic stamp 0001baseline0 && alembic upgrade head`. Manually, run the same two commands.

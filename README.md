@@ -714,7 +714,7 @@ every list endpoint can be filtered to one site. Design and roadmap:
   The console's **Sites overview** page shows it as one card per site; *Open findings* selects the
   site and opens Findings, *PDF report* downloads that site's report.
 - **Report layouts (2026-10-18).** `layout=lrqa` (default; CLI `--layout`) is the **LRQA compliance report**, which follows the owner's technical-report template: a cover with the
-  navy panel, the IACS Monitor wordmark and the Prepared For / Project / Author / Date block; a Contents
+  navy panel, the LRQA logo (`ui/lrqa_logo.png`; the IACS Monitor wordmark when the file is missing) in the cover and every page footer, and the Prepared For / Project / Author / Date block; a Contents
   page with real page numbers; 1 Distribution List and 2 Revision History (from the Reports page's *Report
   details*); 3 Engagement Particulars (background, scope - firewalls, networks, inputs, target SL -,
   assessment window / constraints, the finding summary by severity as checks / occurrences, then the
